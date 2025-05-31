@@ -26,6 +26,7 @@ scalers = {
 "StandardScaler": StandardScaler(),
 "MinMaxScaler": MinMaxScaler()
 }
+
 models ={
    "LogisticRegression" : LogisticRegression(),
    "DecisionTreeClassifier": DecisionTreeClassifier(),
@@ -49,7 +50,7 @@ scoring = {
 param_grids = {
     "LogisticRegression": {
         "clf__C": uniform(0.01, 10),
-        "clf__penalty": ['l2'],
+        "clf__penalty": ['l1'],
         "clf__solver": ['liblinear', 'lbfgs']
     },
     "DecisionTreeClassifier": {
@@ -72,7 +73,7 @@ param_grids = {
         "clf__learning_rate": uniform(0.01, 0.3)
     },
     "Naive Bayes": {
-        # Brak parametrów do tuningu w GaussianNB
+        
     },
     "SVC": {
         "clf__C": uniform(0.1, 10),
