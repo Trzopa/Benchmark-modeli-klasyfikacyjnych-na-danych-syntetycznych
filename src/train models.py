@@ -16,7 +16,7 @@ from scipy.stats import randint, uniform
 warnings.filterwarnings("ignore")
 
 
-df = pd.read_csv("data\\train_balanced_smote.csv")
+df = pd.read_csv("../data/train_balanced_smote.csv")
 X = df.drop(columns=['target'])
 y = df['target']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -95,7 +95,7 @@ def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
     search = RandomizedSearchCV(
         estimator=pipe,
         param_distributions=param_dist,
-        n_iter=20,
+        n_iter=10,
         scoring='f1',
         cv=5,
         random_state=42,
