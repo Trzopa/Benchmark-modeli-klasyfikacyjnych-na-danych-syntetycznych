@@ -53,11 +53,12 @@ from scipy.stats import randint, uniform
 
 param_grids = {
     "LogisticRegression": {
-        "clf__C": uniform(1, 10),
-        "clf__penalty": ['l1', 'l2', 'elasticnet'],
-        "clf__solver": ['liblinear', 'lbfgs', 'newton-cg', 'saga'],
-        "clf__max_iter": randint(100, 1000)
+    "clf__C": uniform(0.1, 10),
+    "clf__penalty": ['l2'],
+    "clf__solver": ['lbfgs'],
+    "clf__max_iter": randint(200, 1000)
     },
+
     "DecisionTreeClassifier": {
         "clf__criterion": ['gini', 'entropy', 'log_loss'],
         "clf__max_depth": randint(3, 10),
@@ -86,18 +87,21 @@ param_grids = {
         "clf__reg_alpha": uniform(0, 1),
         "clf__reg_lambda": uniform(0, 1)
     },
+    
     "lightgbm": {
-        "clf__n_estimators": randint(50, 500),
-        "clf__learning_rate": uniform(0.01, 0.3),
-        "clf__max_depth": randint(3, 20),
-        "clf__num_leaves": randint(31, 200),
-        "clf__min_child_samples": randint(10, 100),
-        "clf__subsample": uniform(0.5, 0.5),
-        "clf__colsample_bytree": uniform(0.5, 0.5),
-        "clf__boosting_type": ['gbdt', 'dart', 'goss'],
-        "clf__reg_alpha": uniform(0, 1),
-        "clf__reg_lambda": uniform(0, 1)
+    "clf__n_estimators": randint(50, 100),                # mniej drzew = szybszy trening
+    "clf__learning_rate": uniform(0.05, 0.1),              # bardziej realistyczne zakresy
+    "clf__max_depth": randint(3, 10),                      # ograniczamy złożoność
+    "clf__num_leaves": randint(20, 80),                    # ograniczamy liczbę liści
+    "clf__min_child_samples": randint(20, 100),            # większa wartość = mniej przeuczenia
+    "clf__subsample": uniform(0.7, 0.3),                    # losowe próbkowanie – stabilniejsze
+    "clf__colsample_bytree": uniform(0.7, 0.3),            # zmniejszamy ilość cech na drzewo
+    "clf__boosting_type": ['gbdt', 'dart'],                # usuwamy 'goss' (czasem niestabilny)
+    "clf__reg_alpha": uniform(0.0, 0.5),                   # mniejszy zakres regularyzacji
+    "clf__reg_lambda": uniform(0.0, 0.5)
     },
+
+
     "Naive Bayes": {
         # brak parametrów do strojenia dla GaussianNB
     },
