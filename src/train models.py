@@ -12,14 +12,16 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 import warnings
+import os
 from scipy.stats import randint, uniform
 warnings.filterwarnings("ignore")
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+df = pd.read_csv(os.path.join(BASE_DIR, "data", "train_balanced_smote.csv"))
 
-df = pd.read_csv("../data/train_balanced_smote.csv")
 X = df.drop(columns=['target'])
 y = df['target']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
 scalers = {
 "NoScaling":None,
@@ -47,45 +49,73 @@ scoring = {
     'roc_auc': make_scorer(roc_auc_score)
 }
 
+from scipy.stats import randint, uniform
+
 param_grids = {
     "LogisticRegression": {
-        "clf__C": uniform(0.01, 10),
-        "clf__penalty": ['l1'],
-        "clf__solver": ['liblinear', 'lbfgs']
+        "clf__C": uniform(1, 10),
+        "clf__penalty": ['l1', 'l2', 'elasticnet'],
+        "clf__solver": ['liblinear', 'lbfgs', 'newton-cg', 'saga'],
+        "clf__max_iter": randint(100, 1000)
     },
     "DecisionTreeClassifier": {
-        "clf__max_depth": randint(3, 20),
-        "clf__min_samples_split": randint(2, 10)
+        "clf__criterion": ['gini', 'entropy', 'log_loss'],
+        "clf__max_depth": randint(3, 10),
+        "clf__min_samples_split": randint(2, 10),
+        "clf__min_samples_leaf": randint(1, 5),
+        "clf__max_features": ['sqrt', 'log2']
     },
     "RandomForestClassifier": {
-        "clf__n_estimators": randint(50, 200),
-        "clf__max_depth": randint(3, 20),
-        "clf__min_samples_split": randint(2, 10)
+        "clf__n_estimators": randint(20, 200),
+        "clf__criterion": ['gini', 'entropy', 'log_loss'],
+        "clf__max_depth": randint(2, 20),
+        "clf__min_samples_split": randint(2, 10),
+        "clf__min_samples_leaf": randint(1, 5),
+        "clf__max_features": ['sqrt', 'log2'],
+        "clf__bootstrap": [True, False],
+        "clf__oob_score": [True, False]
     },
     "XGBClassifier": {
-        "clf__n_estimators": randint(50, 200),
+        "clf__n_estimators": randint(50, 500),
         "clf__max_depth": randint(3, 20),
-        "clf__learning_rate": uniform(0.01, 0.3)
+        "clf__learning_rate": uniform(0.01, 0.3),
+        "clf__subsample": uniform(0.5, 0.5),
+        "clf__colsample_bytree": uniform(0.5, 0.5),
+        "clf__gamma": uniform(0, 5),
+        "clf__min_child_weight": randint(1, 10),
+        "clf__reg_alpha": uniform(0, 1),
+        "clf__reg_lambda": uniform(0, 1)
     },
     "lightgbm": {
-        "clf__n_estimators": randint(50, 200),
+        "clf__n_estimators": randint(50, 500),
+        "clf__learning_rate": uniform(0.01, 0.3),
         "clf__max_depth": randint(3, 20),
-        "clf__learning_rate": uniform(0.01, 0.3)
+        "clf__num_leaves": randint(31, 200),
+        "clf__min_child_samples": randint(10, 100),
+        "clf__subsample": uniform(0.5, 0.5),
+        "clf__colsample_bytree": uniform(0.5, 0.5),
+        "clf__boosting_type": ['gbdt', 'dart', 'goss'],
+        "clf__reg_alpha": uniform(0, 1),
+        "clf__reg_lambda": uniform(0, 1)
     },
     "Naive Bayes": {
-        
+        # brak parametrów do strojenia dla GaussianNB
     },
     "SVC": {
         "clf__C": uniform(0.1, 10),
-        "clf__kernel": ['linear', 'rbf'],
-        "clf__gamma": ['scale', 'auto']
+        "clf__kernel": ['linear', 'rbf', 'poly', 'sigmoid'],
+        "clf__gamma": ['scale', 'auto'],
+        "clf__max_iter": randint(100, 1000)
     },
     "KNeighborsClassifier": {
         "clf__n_neighbors": randint(3, 15),
         "clf__weights": ['uniform', 'distance'],
-        "clf__metric": ['euclidean', 'manhattan']
+        "clf__metric": ['euclidean', 'manhattan'],
+        "clf__algorithm": ['auto', 'ball_tree', 'kd_tree', 'brute'],
+        "clf__leaf_size": randint(10, 100)
     }
 }
+
 
 def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
     if not param_dist:
