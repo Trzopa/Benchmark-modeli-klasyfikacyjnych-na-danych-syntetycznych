@@ -17,8 +17,8 @@ from scipy.stats import randint, uniform
 import numpy as np 
 import json
 
-warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
+warnings.filterwarnings("ignore")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 df = pd.read_csv(os.path.join(BASE_DIR, "data", "train_balanced_smote.csv"))
@@ -38,7 +38,7 @@ models ={
    "DecisionTreeClassifier": DecisionTreeClassifier(),
    "RandomForestClassifier": RandomForestClassifier(),
    "XGBClassifier": XGBClassifier(),
-   "lightgbm": lgb.LGBMClassifier(verbose=-1),
+   "LightGBM": lgb.LGBMClassifier(verbose=-1),
    "Naive Bayes": GaussianNB(),
    "SVC" : SVC(probability=True),
    "KNeighborsClassifier": KNeighborsClassifier()
@@ -99,9 +99,9 @@ param_grids = {
     },
 
     # LightGBM
-    "lightgbm": {
-        "clf__n_estimators": randint(50, 100),  # Liczba drzew (ograniczona do szybszego treningu)
-        "clf__learning_rate": uniform(0.05, 0.1),  # Szybkość uczenia
+    "LightGBM": {
+        "clf__n_estimators": randint(100, 300),  # Liczba drzew (ograniczona do szybszego treningu)
+        "clf__learning_rate": uniform(0.1, 0.1),  # Szybkość uczenia
         "clf__max_depth": randint(3, 10),  # Maksymalna głębokość drzewa
         "clf__subsample": uniform(0.7, 0.3),  # Losowe próbkowanie danych
         "clf__colsample_bytree": uniform(0.7, 0.3),  # Procent cech użytych w drzewie
@@ -154,7 +154,7 @@ def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
         n_jobs=-1,
         verbose=1
     )
-    search.fit(X, y)
+    search.fit(X_train, y_train)
 
     cleaned = clean_params(search.best_params_)
     print(f"-> Najlepszy F1: {search.best_score_:.3f}")
@@ -179,7 +179,7 @@ for model_name, model in models.items():
         else:
             pipe = Pipeline([("scaler", scaler), ("clf", model)])
 
-        metrics = cross_validate(pipe, X, y, scoring=scoring, cv=5)
+        metrics = cross_validate(pipe, X_train, y_train, scoring=scoring, cv=5)
 
         print(f"  Scaler: {scaler_name:<15} | "
               f"Acc: {metrics['test_accuracy'].mean():.3f}  "
