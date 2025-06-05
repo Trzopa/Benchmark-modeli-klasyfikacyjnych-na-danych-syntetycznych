@@ -16,6 +16,7 @@ import os
 from scipy.stats import randint, uniform
 import numpy as np 
 import json
+from sklearn.base import BaseEstimator, TransformerMixin
 
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
@@ -90,8 +91,8 @@ param_grids = {
         "clf__n_estimators": randint(50, 500),  # Liczba drzew
         "clf__max_depth": randint(3, 20),  # Maksymalna głębokość
         "clf__learning_rate": uniform(0.01, 0.3),  # Szybkość uczenia
-        "clf__subsample": uniform(0.5, 0.5),  # Część próbek do trenowania
-        "clf__colsample_bytree": uniform(0.5, 0.5),  # Część cech do budowy drzewa
+        "clf__subsample": uniform(0.7, 0.29),  # Część próbek do trenowania
+        "clf__colsample_bytree": uniform(0.7, 0.29),  # Część cech do budowy drzewa
         "clf__gamma": uniform(0, 5),  # Minimalna redukcja strat
         "clf__min_child_weight": randint(1, 10),  # Minimalna liczba próbek w liściu
         "clf__reg_alpha": uniform(0, 1),  # L1 regularization
@@ -99,14 +100,16 @@ param_grids = {
     },
 
     # LightGBM
-    "LightGBM": {
-        "clf__n_estimators": randint(100, 300),  # Liczba drzew (ograniczona do szybszego treningu)
-        "clf__learning_rate": uniform(0.1, 0.1),  # Szybkość uczenia
-        "clf__max_depth": randint(3, 10),  # Maksymalna głębokość drzewa
-        "clf__subsample": uniform(0.7, 0.3),  # Losowe próbkowanie danych
-        "clf__colsample_bytree": uniform(0.7, 0.3),  # Procent cech użytych w drzewie
-        "clf__reg_alpha": uniform(0.0, 0.5),  # L1 regularization
-        "clf__reg_lambda": uniform(0.0, 0.5)  # L2 regularization
+        "LightGBM": {
+        "clf__n_estimators": randint(50, 400),
+        "clf__max_depth": randint(3, 15),
+        "clf__learning_rate": uniform(0.05, 0.25),
+        "clf__subsample":  uniform(0.6, 0.35),        # bagging_fraction  0.60–0.95
+        "clf__colsample_bytree": uniform(0.6, 0.35),  # feature_fraction 0.60–0.95
+        "clf__min_split_gain": uniform(0, 2),         # zamiast gamma
+        "clf__min_child_weight": randint(1, 10),
+        "clf__reg_alpha": uniform(0, 1),
+        "clf__reg_lambda": uniform(0, 1)
     },
 
     # Naive Bayes (brak parametrów do strojenia)
@@ -129,19 +132,10 @@ param_grids = {
     }
 }
 
-def clean_params(params, round_digits=3):
-    def convert(v):
-        if isinstance(v, (np.floating, float)):
-            return round(float(v), round_digits)
-        elif isinstance(v, (np.integer, int)):
-            return int(v)
-        return v
-    return {k: convert(v) for k, v in params.items()}
-
 
 def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
     if not param_dist:
-        print(f"[RandomSearch]-> Pominięto - brak parametrów do tuningu.")
+        print("[RandomSearch] -> pominięto (brak parametrów).")
         return None, None
 
     search = RandomizedSearchCV(
@@ -152,15 +146,15 @@ def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
         cv=5,
         random_state=42,
         n_jobs=-1,
-        verbose=1
+        verbose=1,
+        error_score="raise"            # od razu zobaczysz nielegalne kombinacje
     )
-    search.fit(X_train, y_train)
+    search.fit(X, y)                  # << zamiast X_train, y_train
 
-    cleaned = clean_params(search.best_params_)
-    print(f"-> Najlepszy F1: {search.best_score_:.3f}")
-    print(f"-> Najlepsze parametry:\n{json.dumps(cleaned, indent=4)}")
-    return search.best_score_, cleaned
-
+    best = clean_params(search.best_params_)
+    print(f"   → Najlepszy F1: {search.best_score_:.3f}")
+    print(f"   → Parametry:\n{json.dumps(best, indent=4)}")
+    return search.best_score_, best
 
 
 print("-------------------------------------  BENCHMARK  ------------------------------------------------------------")
@@ -179,7 +173,7 @@ for model_name, model in models.items():
         else:
             pipe = Pipeline([("scaler", scaler), ("clf", model)])
 
-        metrics = cross_validate(pipe, X_train, y_train, scoring=scoring, cv=5)
+        metrics = cross_validate(pipe, X, y, scoring=scoring, cv=5)
 
         print(f"  Scaler: {scaler_name:<15} | "
               f"Acc: {metrics['test_accuracy'].mean():.3f}  "
