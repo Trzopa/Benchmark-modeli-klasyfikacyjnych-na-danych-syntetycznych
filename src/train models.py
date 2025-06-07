@@ -1,25 +1,26 @@
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.model_selection import train_test_split, cross_validate, RandomizedSearchCV
-from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
+import json
+import os
+import warnings
+
 import lightgbm as lgb
+import numpy as np
+import pandas as pd
+from scipy.stats import randint, uniform
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.model_selection import train_test_split, cross_validate, RandomizedSearchCV
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
-import warnings
-import os
-from scipy.stats import randint, uniform
-import numpy as np 
-import json
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
 
-warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
+warnings.filterwarnings("ignore", message=".*does not have valid feature names.*", category=UserWarning)
 warnings.filterwarnings("ignore")
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 df = pd.read_csv(os.path.join(BASE_DIR, "data", "train_balanced_smote.csv"))
@@ -29,20 +30,20 @@ y = df['target']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
 scalers = {
-"NoScaling":None,
-"StandardScaler": StandardScaler(),
-"MinMaxScaler": MinMaxScaler()
+    "NoScaling": None,
+    "StandardScaler": StandardScaler(),
+    "MinMaxScaler": MinMaxScaler()
 }
 
-models ={
-   "LogisticRegression" : LogisticRegression(),
-   "DecisionTreeClassifier": DecisionTreeClassifier(),
-   "RandomForestClassifier": RandomForestClassifier(),
-   "XGBClassifier": XGBClassifier(),
-   "LightGBM": lgb.LGBMClassifier(verbose=-1),
-   "Naive Bayes": GaussianNB(),
-   "SVC" : SVC(probability=True),
-   "KNeighborsClassifier": KNeighborsClassifier()
+models = {
+    "LogisticRegression": LogisticRegression(),
+    "DecisionTreeClassifier": DecisionTreeClassifier(),
+    "RandomForestClassifier": RandomForestClassifier(),
+    "XGBClassifier": XGBClassifier(),
+    "LightGBM": lgb.LGBMClassifier(verbose=-1),
+    "Naive Bayes": GaussianNB(),
+    "SVC": SVC(probability=True),
+    "KNeighborsClassifier": KNeighborsClassifier()
 
 }
 
@@ -54,14 +55,12 @@ scoring = {
     'roc_auc': make_scorer(roc_auc_score)
 }
 
-from scipy.stats import randint, uniform
-
 param_grids = {
     # Logistic Regression
     "LogisticRegression": {
         "clf__C": uniform(0.1, 10),  # Siła regularyzacji (niższa = mocniejsza regularyzacja)
         "clf__penalty": ['l2', 'l1'],  # Typ regularyzacji
-        "clf__solver": ['lbfgs', 'sag', 'saga', 'newton-cg', 'liblinear'],  # Algorytm optymalizacji
+        "clf__solver": ['saga', 'liblinear'],  # Algorytm optymalizacji
         "clf__max_iter": randint(200, 1000)  # Maksymalna liczba iteracji do zbieżności
     },
 
@@ -83,7 +82,7 @@ param_grids = {
         "clf__min_samples_leaf": randint(1, 5),  # Minimalna liczba próbek w liściu
         "clf__max_features": ['sqrt', 'log2'],  # Liczba cech do rozważenia
         "clf__bootstrap": [True, False],  # Czy stosować bootstrapping
-        "clf__oob_score": [True, False]  # Czy obliczać dokładność OOB
+
     },
 
     # XGBoost
@@ -100,13 +99,13 @@ param_grids = {
     },
 
     # LightGBM
-        "LightGBM": {
+    "LightGBM": {
         "clf__n_estimators": randint(50, 400),
         "clf__max_depth": randint(3, 15),
         "clf__learning_rate": uniform(0.05, 0.25),
-        "clf__subsample":  uniform(0.6, 0.35),        # bagging_fraction  0.60–0.95
+        "clf__subsample": uniform(0.6, 0.35),  # bagging_fraction  0.60–0.95
         "clf__colsample_bytree": uniform(0.6, 0.35),  # feature_fraction 0.60–0.95
-        "clf__min_split_gain": uniform(0, 2),         # zamiast gamma
+        "clf__min_split_gain": uniform(0, 2),  # zamiast gamma
         "clf__min_child_weight": randint(1, 10),
         "clf__reg_alpha": uniform(0, 1),
         "clf__reg_lambda": uniform(0, 1)
@@ -133,6 +132,17 @@ param_grids = {
 }
 
 
+def clean_params(params, round_digits=3):
+    def convert(v):
+        if isinstance(v, (np.floating, float)):
+            return round(float(v), round_digits)
+        elif isinstance(v, (np.integer, int)):
+            return int(v)
+        return v
+
+    return {k: convert(v) for k, v in params.items()}
+
+
 def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
     if not param_dist:
         print("[RandomSearch] -> pominięto (brak parametrów).")
@@ -147,9 +157,9 @@ def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
         random_state=42,
         n_jobs=-1,
         verbose=1,
-        error_score="raise"            # od razu zobaczysz nielegalne kombinacje
+        error_score="raise"  # od razu zobaczysz nielegalne kombinacje
     )
-    search.fit(X, y)                  # << zamiast X_train, y_train
+    search.fit(X, y)
 
     best = clean_params(search.best_params_)
     print(f"   → Najlepszy F1: {search.best_score_:.3f}")
@@ -161,9 +171,8 @@ print("-------------------------------------  BENCHMARK  -----------------------
 
 for model_name, model in models.items():
     print(f"\nModel: {model_name}")
-    
+
     for scaler_name, scaler in scalers.items():
-        # Pomijamy NoScaling dla modeli wrażliwych na skalę
         if scaler is None and model_name in ["SVC"]:
             print(f"  Skipping NoScaling for {model_name} (requires scaled data)")
             continue
