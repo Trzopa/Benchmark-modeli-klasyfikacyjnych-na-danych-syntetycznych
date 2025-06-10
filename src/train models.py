@@ -100,16 +100,17 @@ param_grids = {
 
     # LightGBM
     "LightGBM": {
-        "clf__n_estimators": randint(50, 400),
-        "clf__max_depth": randint(3, 15),
-        "clf__learning_rate": uniform(0.05, 0.25),
-        "clf__subsample": uniform(0.6, 0.35),  # bagging_fraction  0.60–0.95
-        "clf__colsample_bytree": uniform(0.6, 0.35),  # feature_fraction 0.60–0.95
-        "clf__min_split_gain": uniform(0, 2),  # zamiast gamma
-        "clf__min_child_weight": randint(1, 10),
-        "clf__reg_alpha": uniform(0, 1),
-        "clf__reg_lambda": uniform(0, 1)
+    "clf__n_estimators": randint(50, 400),
+    "clf__max_depth": randint(3, 15),
+    "clf__learning_rate": uniform(0.05, 0.25),
+    "clf__bagging_fraction": uniform(0.6, 0.35),        # zamiast subsample
+    "clf__feature_fraction": uniform(0.6, 0.35),        # zamiast colsample_bytree
+    "clf__min_split_gain": uniform(0, 2),               # minimalna redukcja strat (jak gamma)
+    "clf__min_child_weight": randint(1, 10),
+    "clf__reg_alpha": uniform(0, 1),
+    "clf__reg_lambda": uniform(0, 1)
     },
+
 
     # Naive Bayes (brak parametrów do strojenia)
     "Naive Bayes": {},
@@ -166,6 +167,7 @@ def run_random_search(pipe, param_dist, model_name, scaler_name, X, y):
     print(f"   → Parametry:\n{json.dumps(best, indent=4)}")
     return search.best_score_, best
 
+results = []
 
 print("-------------------------------------  BENCHMARK  ------------------------------------------------------------")
 
@@ -177,10 +179,7 @@ for model_name, model in models.items():
             print(f"  Skipping NoScaling for {model_name} (requires scaled data)")
             continue
 
-        if scaler is None:
-            pipe = Pipeline([("clf", model)])
-        else:
-            pipe = Pipeline([("scaler", scaler), ("clf", model)])
+        pipe = Pipeline([("clf", model)]) if scaler is None else Pipeline([("scaler", scaler), ("clf", model)])
 
         metrics = cross_validate(pipe, X, y, scoring=scoring, cv=5)
 
@@ -194,5 +193,25 @@ for model_name, model in models.items():
               f"Test Time: {metrics['score_time'].mean():.3f}s")
 
         param_dist = param_grids.get(model_name, {})
+        best_score, best_params = None, None
         if param_dist:
             best_score, best_params = run_random_search(pipe, param_dist, model_name, scaler_name, X_train, y_train)
+
+        results.append({
+            "model": model_name,
+            "scaler": scaler_name,
+            "accuracy": round(metrics['test_accuracy'].mean(), 3),
+            "precision": round(metrics['test_precision'].mean(), 3),
+            "recall": round(metrics['test_recall'].mean(), 3),
+            "f1": round(metrics['test_f1'].mean(), 3),
+            "roc_auc": round(metrics['test_roc_auc'].mean(), 3),
+            "train_time": round(metrics['fit_time'].mean(), 3),
+            "test_time": round(metrics['score_time'].mean(), 3),
+            "random_search_score": round(best_score, 3) if best_score is not None else None,
+            "best_params": json.dumps(best_params) if best_params is not None else None
+        })
+
+results_df = pd.DataFrame(results)
+output_path = os.path.join(BASE_DIR, "benchmark_results.csv")
+results_df.to_csv(output_path, index=False)
+print(f"Wyniki zapisane do: {output_path}")
