@@ -2,6 +2,7 @@ import json
 import os
 import warnings
 
+
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -19,7 +20,9 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn import set_config
 
+set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*", category=UserWarning)
 warnings.filterwarnings("ignore")
 
@@ -83,7 +86,7 @@ models = {
     "DecisionTreeClassifier": DecisionTreeClassifier(),
     "RandomForestClassifier": RandomForestClassifier(),
     "XGBClassifier": XGBClassifier(),
-    "LightGBM": lgb.LGBMClassifier(verbose=-1),
+    "LightGBM": lgb.LGBMClassifier(),
     "Naive Bayes": GaussianNB(),
     "SVC": SVC(probability=True),
     "KNeighborsClassifier": KNeighborsClassifier()
@@ -188,8 +191,13 @@ def evaluate_pipeline(model_name, model, scaler_name, scaler, X_train, y_train, 
     if scaler is None and model_name == "SVC":
         print(f"  Skipping NoScaling for {model_name} (requires scaled data)")
         return
-    pipe_steps = [("scaler", scaler)] if scaler else []
-    pipe_steps += [("smote", SMOTE(random_state=42)), ("clf", model)]
+    pipe_steps = []
+    if scaler is not None:
+        pipe_steps.append(("scaler", scaler))
+    pipe_steps += [
+        ("smote", SMOTE(random_state=42)),
+        ("clf", lgb.LGBMClassifier(verbose=-1))
+    ]
     pipe = ImbPipeline(pipe_steps)
     if is_training:
         metrics = cross_validate(pipe, X_train, y_train, cv=5, scoring=scoring)
