@@ -170,38 +170,51 @@ def clean_params(params, round_digits=3):
     return {k: convert(v) for k, v in params.items()}
 
 
-def run_random_search(pipel, param_distinct, model_name, scaler_name, X, y):
-    if not param_distinct:
-        print(f"[RandomSearch] {model_name} + {scaler_name} → pominięto (brak parametrów).")
+def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels):
+    if not param_grid:
+        print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → pominięto (brak parametrów).")
         return None, None
-    print(f"[RandomSearch] {model_name} + {scaler_name} → start...")
+
+    print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
+
     search = RandomizedSearchCV(
-        estimator=pipel, param_distributions=param_distinct, n_iter=20,
-        scoring='f1', cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
-    search.fit(X, y)
-    best = clean_params(search.best_params_)
-    print(f"   → Najlepszy F1 ({model_name} + {scaler_name}): {search.best_score_:.3f}")
-    print(f"   → Parametry dla {model_name}:")
-    print(json.dumps(best, indent=4))
+        estimator=pipeline,
+        param_distributions=param_grid,
+        n_iter=20,
+        scoring='f1',
+        cv=5,
+        random_state=42,
+        n_jobs=-1,
+        verbose=1,
+        error_score="raise"
+    )
 
-    return search.best_score_, best
+    search.fit(X_data, y_labels)
+    best_params = clean_params(search.best_params_)
+
+    print(f"   → Najlepszy F1 ({estimator_name} + {preprocessor_name}): {search.best_score_:.3f}")
+    print(f"   → Parametry dla {estimator_name}:")
+    print(json.dumps(best_params, indent=4))
+
+    return search.best_score_, best_params
 
 
-def evaluate_pipeline(model_name, model, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True):
-    if scaler is None and model_name == "SVC":
-        print(f"  Skipping NoScaling for {model_name} (requires scaled data)")
+
+def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_features, y_train_labels, X_test_features, y_test_labels, is_training=True):
+    if preprocessor is None and estimator_name == "SVC":
+        print(f"  Skipping NoScaling for {estimator_name} (requires scaled data)")
         return
     pipe_steps = []
-    if scaler is not None:
-        pipe_steps.append(("scaler", scaler))
+    if preprocessor is not None:
+        pipe_steps.append(("scaler", preprocessor))
     pipe_steps += [
         ("smote", SMOTE(random_state=42)),
         ("clf", lgb.LGBMClassifier(verbose=-1))
     ]
     pipe = ImbPipeline(pipe_steps)
     if is_training:
-        metrics = cross_validate(pipe, X_train, y_train, cv=5, scoring=scoring)
-        print(f"  Scaler: {scaler_name:<15} | "
+        metrics = cross_validate(pipe, X_train_features, y_train_labels, cv=5, scoring=scoring)
+        print(f"  Scaler: {preprocessor_name:<15} | "
               f"Acc: {metrics['test_accuracy'].mean():.3f}  "
               f"Prec: {metrics['test_precision'].mean():.3f}  "
               f"Rec: {metrics['test_recall'].mean():.3f}  "
@@ -209,20 +222,20 @@ def evaluate_pipeline(model_name, model, scaler_name, scaler, X_train, y_train, 
               f"ROC_AUC: {metrics['test_roc_auc'].mean():.3f}  "
               f"Train Time: {metrics['fit_time'].mean():.3f}s  "
               f"Test Time: {metrics['score_time'].mean():.3f}s")
-        param_dist = param_grids.get(model_name, {})
+        param_dist = param_grids.get(estimator_name, {})
         if param_dist:
-            run_random_search(pipe, param_dist, model_name, scaler_name, X_train, y_train)
+            run_random_search(pipe, param_dist, estimator_name, preprocessor_name, X_train_features, y_train_labels)
     else:
-        pipe.fit(X_train, y_train)
-        y_pred = pipe.predict(X_test)
-        y_proba = pipe.predict_proba(X_test)[:, 1] if hasattr(pipe.named_steps["clf"], "predict_proba") else None
-        print(f"  Scaler: {scaler_name:<15} | "
-              f"Accuracy:  {accuracy_score(y_test, y_pred):.3f}  "
-              f"Precision: {precision_score(y_test, y_pred):.3f}  "
-              f"Recall:    {recall_score(y_test, y_pred):.3f}  "
-              f"F1-score:  {f1_score(y_test, y_pred):.3f}", end='')
+        pipe.fit(X_train_features, y_train_labels)
+        y_pred = pipe.predict(X_test_features)
+        y_proba = pipe.predict_proba(X_test_features)[:, 1] if hasattr(pipe.named_steps["clf"], "predict_proba") else None
+        print(f"  Scaler: {preprocessor_name:<15} | "
+              f"Accuracy:  {accuracy_score(y_test_labels, y_pred):.3f}  "
+              f"Precision: {precision_score(y_test_labels, y_pred):.3f}  "
+              f"Recall:    {recall_score(y_test_labels, y_pred):.3f}  "
+              f"F1-score:  {f1_score(y_test_labels, y_pred):.3f}", end='')
         if y_proba is not None:
-            print(f"  ROC AUC: {roc_auc_score(y_test, y_proba):.3f}")
+            print(f"  ROC AUC: {roc_auc_score(y_test_labels, y_proba):.3f}")
         else:
             print("  ROC AUC: brak (model nie wspiera predict_proba)")
 
@@ -232,10 +245,10 @@ print(" --------- Wyniki na danych treningowych --------------")
 for model_name, model in models.items():
     print(f"\nModel: {model_name}")
     for scaler_name, scaler in scalers.items():
-        evaluate_pipeline(model_name, model, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True)
+        evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True)
 
 print(" --------- Wyniki na danych testowych ----------------")
 for model_name, model in models.items():
     print(f"\nModel: {model_name}")
     for scaler_name, scaler in scalers.items():
-        evaluate_pipeline(model_name, model, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=False)
+        evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=False)
