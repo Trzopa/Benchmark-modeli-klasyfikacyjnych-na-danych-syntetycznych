@@ -93,7 +93,7 @@ models = {
     "DecisionTreeClassifier": DecisionTreeClassifier(),
     "RandomForestClassifier": RandomForestClassifier(),
     "XGBClassifier": XGBClassifier(),
-    "LightGBM": lgb.LGBMClassifier(),
+    "LightGBM": lgb.LGBMClassifier(verbose=-1),
     "Naive Bayes": GaussianNB(),
     "SVC": SVC(probability=True),
     "KNeighborsClassifier": KNeighborsClassifier()
@@ -129,7 +129,6 @@ param_grids = {
         "clf__subsample": uniform(0.7, 0.3),
         "clf__colsample_bytree": uniform(0.7, 0.3),
         "clf__gamma": uniform(0, 5),
-        "clf__booster": ['gbtree', 'gblinear', 'dart'],
         "clf__reg_alpha": uniform(0, 1),
         "clf__reg_lambda": uniform(0, 1)
     },
@@ -137,7 +136,6 @@ param_grids = {
         "clf__n_estimators": randint(50, 500),
         "clf__learning_rate": uniform(0.01, 0.5),
         "clf__num_leaves": randint(31, 100),
-        "clf__booster": ['gbtree', 'gblinear', 'dart'],
         "clf__max_depth": randint(5, 20),
         "clf__reg_alpha": uniform(0, 1),
         "clf__reg_lambda": uniform(0, 1),
