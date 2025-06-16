@@ -28,10 +28,10 @@ set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*", category=UserWarning)
 warnings.filterwarnings("ignore")
 # Define base directory
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # === Load and prepare raw training data ===
-df_raw = pd.read_csv(os.path.join(BASE_DIR, "data", "train.csv"))
+df_raw = pd.read_csv(os.path.join(base_dir, "data", "train.csv"))
 
 # Define imputation strategy per feature
 imputation_strategies = {
@@ -89,14 +89,14 @@ scalers = {
 }
 
 models = {
-    "LogisticRegression": LogisticRegression(),
-    "DecisionTreeClassifier": DecisionTreeClassifier(),
-    "RandomForestClassifier": RandomForestClassifier(),
-    "XGBClassifier": XGBClassifier(),
-    "LightGBM": lgb.LGBMClassifier(verbose=-1),
-    "Naive Bayes": GaussianNB(),
-    "SVC": SVC(probability=True),
-    "KNeighborsClassifier": KNeighborsClassifier()
+    "LogisticRegression": lambda: LogisticRegression(),
+    "DecisionTreeClassifier": lambda: DecisionTreeClassifier(),
+    "RandomForestClassifier": lambda: RandomForestClassifier(),
+    "XGBClassifier": lambda: XGBClassifier(),
+    "LightGBM": lambda: lgb.LGBMClassifier(),
+    "Naive Bayes": lambda: GaussianNB(),
+    "SVC": lambda: SVC(probability=True),
+    "KNeighborsClassifier": lambda: KNeighborsClassifier()
 }
 
 # === Define hyperparameter search grids ===
@@ -181,7 +181,7 @@ def clean_params(params, round_digits=3):
 
 
 def log_cv_results(estimator_name, preprocessor_name, metrics):
-    out_path = os.path.join(BASE_DIR, "results", "metrics", "train_cv_metrics.csv")
+    out_path = os.path.join(base_dir, "results", "metrics", "train_cv_metrics.csv")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     result_row = {
         "timestamp": datetime.now().isoformat(),
@@ -204,7 +204,7 @@ def log_cv_results(estimator_name, preprocessor_name, metrics):
 
 
 def log_best_params(estimator_name, preprocessor_name, best_score, best_params):
-    out_path = os.path.join(BASE_DIR, "results", "metrics", "best_params.json")
+    out_path = os.path.join(base_dir, "results", "metrics", "best_params.json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     try:
         with open(out_path, "r") as f:
@@ -212,7 +212,7 @@ def log_best_params(estimator_name, preprocessor_name, best_score, best_params):
     except:
         existing = {}
     key = f"{estimator_name} + {preprocessor_name}"
-    existing[key] = {"best_score": best_score, "best_params": best_params}
+    existing[key] = {"best_score": round(best_score, 3), "best_params": best_params}
     with open(out_path, "w") as f:
         json.dump(existing, f, indent=4)
 
@@ -223,14 +223,13 @@ def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X
         print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
         return None, None
     print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
-    search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=20, scoring='f1',
+    search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=10, scoring='f1',
                                 cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
     search.fit(X_data, y_labels)
     best_params = clean_params(search.best_params_)
     print(f"   → Best F1: {search.best_score_:.3f}\n", json.dumps(best_params, indent=4))
     log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params)
     return search.best_score_, best_params
-
 
 def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_features, y_train_labels, X_test_features, y_test_labels, is_training=True):
     if preprocessor is None and estimator_name == "SVC":
@@ -239,11 +238,18 @@ def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_f
     pipe_steps = []
     if preprocessor is not None:
         pipe_steps.append(("scaler", preprocessor))
-    pipe_steps += [
-        ("smote", SMOTE(random_state=42)),
-        ("clf",  models[estimator_name])
-    ]
+
+    pipe_steps.append(("smote", SMOTE(random_state=42)))
+
+    model_factory = models[estimator_name]
+    estimator = model_factory() if callable(model_factory) else model_factory
+    if estimator_name == "LightGBM":
+        estimator = lgb.LGBMClassifier(**estimator.get_params(), verbose=-1)
+
+    pipe_steps.append(("clf", estimator))  # <- zawsze dodajemy klasyfikator
+
     pipe = ImbPipeline(pipe_steps)
+
     if is_training:
         metrics = cross_validate(pipe, X_train_features, y_train_labels, cv=5, scoring=scoring)
         print(f"  Scaler: {preprocessor_name:<15} | "
