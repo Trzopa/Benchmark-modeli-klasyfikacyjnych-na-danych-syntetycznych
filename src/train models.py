@@ -1,8 +1,8 @@
 import json
 import os
 import warnings
-
-
+from datetime import datetime
+import csv
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -22,13 +22,18 @@ from xgboost import XGBClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn import set_config
 
+# Set output of transformers to be DataFrames
 set_config(transform_output="pandas")
+# Ignore common warnings
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*", category=UserWarning)
 warnings.filterwarnings("ignore")
-
+# Define base directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# === Load and prepare raw training data ===
 df_raw = pd.read_csv(os.path.join(BASE_DIR, "data", "train.csv"))
 
+# Define imputation strategy per feature
 imputation_strategies = {
     'feature_0': 'knn', 'feature_1': 'knn', 'feature_3': 'knn', 'feature_5': 'knn',
     'feature_12': 'delete', 'feature_14': 'delete', 'feature_15': 'delete',
@@ -37,6 +42,7 @@ imputation_strategies = {
 }
 
 
+# === Imputation helper functions ===
 def get_columns_to_delete(strategies_dict):
     return [col for col, strategy in strategies_dict.items() if strategy == 'delete']
 
@@ -70,11 +76,12 @@ def apply_imputations(df, strategies_dict, knn_n_neighbors=5):
     return apply_simple_imputation(df_filled, strategies_dict)
 
 
+# === Final cleaned dataset ===
 df_clean = apply_imputations(df_raw, imputation_strategies)
 X = df_clean.drop(columns=['target'])
 y = df_clean['target']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
+# === Define scalers and models ===
 scalers = {
     "NoScaling": None,
     "StandardScaler": StandardScaler(),
@@ -92,48 +99,51 @@ models = {
     "KNeighborsClassifier": KNeighborsClassifier()
 }
 
+# === Define hyperparameter search grids ===
 param_grids = {
     "LogisticRegression": {
-        "clf__C": uniform(0.1, 10), "clf__penalty": ['l2', 'l1'],
-        "clf__solver": ['saga', 'liblinear'], "clf__max_iter": randint(500, 2000)
+        "clf__C": uniform(0.1, 10),
+        "clf__penalty": ['l2', 'l1'],
+        "clf__solver": ['saga', 'liblinear'],
+        "clf__max_iter": randint(500, 2000)
     },
     "DecisionTreeClassifier": {
         "clf__criterion": ['gini', 'entropy', 'log_loss'],
-        "clf__max_depth": randint(3, 10),
-        "clf__min_samples_split": randint(2, 10),
-        "clf__min_samples_leaf": randint(1, 5),
+        "clf__max_depth": randint(3, 20),
+        "clf__min_samples_split": randint(2, 20),
+        "clf__min_samples_leaf": randint(1, 10),
         "clf__max_features": ['sqrt', 'log2']
     },
     "RandomForestClassifier": {
         "clf__n_estimators": randint(20, 200),
         "clf__criterion": ['gini', 'entropy', 'log_loss'],
         "clf__max_depth": randint(2, 20),
-        "clf__min_samples_split": randint(2, 10),
-        "clf__min_samples_leaf": randint(1, 5),
-        "clf__max_features": ['sqrt', 'log2'],
-        "clf__bootstrap": [True, False]
+        "clf__min_samples_split": randint(2, 20),
+        "clf__min_samples_leaf": randint(1, 10),
+        "clf__max_features": ['sqrt', 'log2']
     },
     "XGBClassifier": {
         "clf__n_estimators": randint(50, 500),
         "clf__max_depth": randint(3, 20),
-        "clf__learning_rate": uniform(0.01, 0.3),
-        "clf__subsample": uniform(0.7, 0.29),
-        "clf__colsample_bytree": uniform(0.7, 0.29),
+        "clf__learning_rate": uniform(0.01, 0.5),
+        "clf__subsample": uniform(0.7, 0.3),
+        "clf__colsample_bytree": uniform(0.7, 0.3),
         "clf__gamma": uniform(0, 5),
-        "clf__min_child_weight": randint(1, 10),
+        "clf__booster": ['gbtree', 'gblinear', 'dart'],
         "clf__reg_alpha": uniform(0, 1),
         "clf__reg_lambda": uniform(0, 1)
     },
     "LightGBM": {
-        "clf__n_estimators": randint(100, 400),
-        "clf__learning_rate": uniform(0.01, 0.1),
+        "clf__n_estimators": randint(50, 500),
+        "clf__learning_rate": uniform(0.01, 0.5),
         "clf__num_leaves": randint(31, 100),
-        "clf__min_data_in_leaf": randint(5, 20),
+        "clf__booster": ['gbtree', 'gblinear', 'dart'],
         "clf__max_depth": randint(5, 20),
-        "clf__feature_fraction": uniform(0.6, 0.4),
-        "clf__bagging_fraction": uniform(0.6, 0.4),
         "clf__reg_alpha": uniform(0, 1),
-        "clf__reg_lambda": uniform(0, 1)
+        "clf__reg_lambda": uniform(0, 1),
+        "clf__bagging_fraction": uniform(0.5, 0.5),
+        "clf__feature_fraction": uniform(0.5, 0.5)
+
     },
     "Naive Bayes": {},
     "SVC": {
@@ -150,6 +160,7 @@ param_grids = {
     }
 }
 
+# === Scoring metrics ===
 scoring = {
     'accuracy': make_scorer(accuracy_score),
     'precision': make_scorer(precision_score),
@@ -159,6 +170,7 @@ scoring = {
 }
 
 
+# === Utility functions ===
 def clean_params(params, round_digits=3):
     def convert(v):
         if isinstance(v, (np.floating, float)):
@@ -170,34 +182,56 @@ def clean_params(params, round_digits=3):
     return {k: convert(v) for k, v in params.items()}
 
 
+def log_cv_results(estimator_name, preprocessor_name, metrics):
+    out_path = os.path.join(BASE_DIR, "results", "metrics", "train_cv_metrics.csv")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    result_row = {
+        "timestamp": datetime.now().isoformat(),
+        "model": estimator_name,
+        "scaler": preprocessor_name,
+        "accuracy": metrics["test_accuracy"].mean(),
+        "precision": metrics["test_precision"].mean(),
+        "recall": metrics["test_recall"].mean(),
+        "f1": metrics["test_f1"].mean(),
+        "roc_auc": metrics["test_roc_auc"].mean(),
+        "fit_time": metrics["fit_time"].mean(),
+        "score_time": metrics["score_time"].mean()
+    }
+    file_exists = os.path.isfile(out_path)
+    with open(out_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=result_row.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(result_row)
+
+
+def log_best_params(estimator_name, preprocessor_name, best_score, best_params):
+    out_path = os.path.join(BASE_DIR, "results", "metrics", "best_params.json")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    try:
+        with open(out_path, "r") as f:
+            existing = json.load(f)
+    except:
+        existing = {}
+    key = f"{estimator_name} + {preprocessor_name}"
+    existing[key] = {"best_score": best_score, "best_params": best_params}
+    with open(out_path, "w") as f:
+        json.dump(existing, f, indent=4)
+
+
+# === Evaluation and pipeline logic ===
 def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels):
     if not param_grid:
-        print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → pominięto (brak parametrów).")
+        print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
         return None, None
-
     print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
-
-    search = RandomizedSearchCV(
-        estimator=pipeline,
-        param_distributions=param_grid,
-        n_iter=20,
-        scoring='f1',
-        cv=5,
-        random_state=42,
-        n_jobs=-1,
-        verbose=1,
-        error_score="raise"
-    )
-
+    search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=20, scoring='f1',
+                                cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
     search.fit(X_data, y_labels)
     best_params = clean_params(search.best_params_)
-
-    print(f"   → Najlepszy F1 ({estimator_name} + {preprocessor_name}): {search.best_score_:.3f}")
-    print(f"   → Parametry dla {estimator_name}:")
-    print(json.dumps(best_params, indent=4))
-
+    print(f"   → Best F1: {search.best_score_:.3f}\n", json.dumps(best_params, indent=4))
+    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params)
     return search.best_score_, best_params
-
 
 
 def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_features, y_train_labels, X_test_features, y_test_labels, is_training=True):
@@ -209,7 +243,7 @@ def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_f
         pipe_steps.append(("scaler", preprocessor))
     pipe_steps += [
         ("smote", SMOTE(random_state=42)),
-        ("clf", lgb.LGBMClassifier(verbose=-1))
+        ("clf",  models[estimator_name])
     ]
     pipe = ImbPipeline(pipe_steps)
     if is_training:
@@ -240,15 +274,18 @@ def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_f
             print("  ROC AUC: brak (model nie wspiera predict_proba)")
 
 
-print("-------------------------------------  BENCHMARK  ------------------------------------------------------------")
-print(" --------- Wyniki na danych treningowych --------------")
-for model_name, model in models.items():
-    print(f"\nModel: {model_name}")
-    for scaler_name, scaler in scalers.items():
-        evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True)
+# === Run all models with all scalers ===
+if __name__ == "__main__":
+    print(
+        "-------------------------------------  BENCHMARK  ------------------------------------------------------------")
+    print(" --------- Wyniki na danych treningowych --------------")
+    for model_name, model in models.items():
+        print(f"\nModel: {model_name}")
+        for scaler_name, scaler in scalers.items():
+            evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True)
 
-print(" --------- Wyniki na danych testowych ----------------")
-for model_name, model in models.items():
-    print(f"\nModel: {model_name}")
-    for scaler_name, scaler in scalers.items():
-        evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=False)
+    print(" --------- Wyniki na danych testowych ----------------")
+    for model_name, model in models.items():
+        print(f"\nModel: {model_name}")
+        for scaler_name, scaler in scalers.items():
+            evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=False)
