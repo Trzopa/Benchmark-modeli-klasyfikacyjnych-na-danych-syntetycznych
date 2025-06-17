@@ -1,0 +1,169 @@
+
+# === Define hyperparameter search grids ===
+
+LogisticRegression:
+  clf__C:
+    distribution: uniform
+    loc: 0.1
+    scale: 10
+  clf__penalty:
+    - l2
+    - l1
+  clf__solver:
+    - saga
+    - liblinear
+  clf__max_iter:
+    distribution: randint
+    low: 500
+    high: 2000
+
+DecisionTreeClassifier:
+  clf__criterion:
+    - gini
+    - entropy
+    - log_loss
+  clf__max_depth:
+    distribution: randint
+    low: 3
+    high: 20
+  clf__min_samples_split:
+    distribution: randint
+    low: 2
+    high: 20
+  clf__min_samples_leaf:
+    distribution: randint
+    low: 1
+    high: 10
+  clf__max_features:
+    - sqrt
+    - log2
+
+RandomForestClassifier:
+  clf__n_estimators:
+    distribution: randint
+    low: 20
+    high: 200
+  clf__criterion:
+    - gini
+    - entropy
+    - log_loss
+  clf__max_depth:
+    distribution: randint
+    low: 2
+    high: 20
+  clf__min_samples_split:
+    distribution: randint
+    low: 2
+    high: 20
+  clf__min_samples_leaf:
+    distribution: randint
+    low: 1
+    high: 10
+  clf__max_features:
+    - sqrt
+    - log2
+
+XGBClassifier:
+  clf__n_estimators:
+    distribution: randint
+    low: 50
+    high: 500
+  clf__max_depth:
+    distribution: randint
+    low: 3
+    high: 20
+  clf__learning_rate:
+    distribution: uniform
+    loc: 0.01
+    scale: 0.5
+  clf__subsample:
+    distribution: uniform
+    loc: 0.7
+    scale: 0.3
+  clf__colsample_bytree:
+    distribution: uniform
+    loc: 0.7
+    scale: 0.3
+  clf__gamma:
+    distribution: uniform
+    loc: 0
+    scale: 5
+  clf__reg_alpha:
+    distribution: uniform
+    loc: 0
+    scale: 1
+  clf__reg_lambda:
+    distribution: uniform
+    loc: 0
+    scale: 1
+
+LightGBM:
+  clf__n_estimators:
+    distribution: randint
+    low: 50
+    high: 500
+  clf__learning_rate:
+    distribution: uniform
+    loc: 0.01
+    scale: 0.5
+  clf__num_leaves:
+    distribution: randint
+    low: 31
+    high: 100
+  clf__max_depth:
+    distribution: randint
+    low: 5
+    high: 20
+  clf__reg_alpha:
+    distribution: uniform
+    loc: 0
+    scale: 1
+  clf__reg_lambda:
+    distribution: uniform
+    loc: 0
+    scale: 1
+  clf__bagging_fraction:
+    distribution: uniform
+    loc: 0.5
+    scale: 0.5
+  clf__feature_fraction:
+    distribution: uniform
+    loc: 0.5
+    scale: 0.5
+
+NaiveBayes: {}
+
+SVC:
+  clf__C:
+    distribution: uniform
+    loc: 0.1
+    scale: 10
+  clf__kernel:
+    - linear
+    - rbf
+    - poly
+    - sigmoid
+  clf__gamma:
+    - scale
+    - auto
+
+KNeighborsClassifier:
+  clf__n_neighbors:
+    distribution: randint
+    low: 3
+    high: 15
+  clf__weights:
+    - uniform
+    - distance
+  clf__metric:
+    - euclidean
+    - manhattan
+  clf__algorithm:
+    - auto
+    - ball_tree
+    - kd_tree
+    - brute
+  clf__leaf_size:
+    distribution: randint
+    low: 10
+    high: 100

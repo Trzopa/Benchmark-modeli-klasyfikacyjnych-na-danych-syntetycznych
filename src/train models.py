@@ -1,295 +1,195 @@
-import json
+#!/usr/bin/env python3
 import os
+import argparse
 import warnings
-from datetime import datetime
-import csv
-import lightgbm as lgb
-import numpy as np
+from pathlib import Path
+
 import pandas as pd
+import lightgbm as lgb
+
+from sklearn import set_config
+from sklearn.model_selection import train_test_split, cross_validate
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
-from scipy.stats import randint, uniform
-from sklearn.ensemble import RandomForestClassifier
+from scipy.stats import uniform, randint
+
+from src.utils import (
+    load_config,
+    apply_imputations,
+    run_random_search,
+    log_cv_results
+)
+
+# Fabryki modeli
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from sklearn.model_selection import train_test_split, cross_validate, RandomizedSearchCV
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn import set_config
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 
-# Set output of transformers to be DataFrames
-set_config(transform_output="pandas")
-# Ignore common warnings
-warnings.filterwarnings("ignore", message=".*does not have valid feature names.*", category=UserWarning)
-warnings.filterwarnings("ignore")
-# Define base directory
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# === Load and prepare raw training data ===
-df_raw = pd.read_csv(os.path.join(base_dir, "data", "train.csv"))
-
-# Define imputation strategy per feature
-imputation_strategies = {
-    'feature_0': 'knn', 'feature_1': 'knn', 'feature_3': 'knn', 'feature_5': 'knn',
-    'feature_12': 'delete', 'feature_14': 'delete', 'feature_15': 'delete',
-    'feature_16': 'mean', 'feature_17': 'mean', 'feature_19': 'knn', 'feature_20': 'knn',
-    'feature_21': 'delete', 'feature_24': 'knn'
-}
-
-
-# === Imputation helper functions ===
-def get_columns_to_delete(strategies_dict):
-    return [col for col, strategy in strategies_dict.items() if strategy == 'delete']
-
-
-def remove_columns(df, columns):
-    return df.drop(columns=columns, errors='ignore')
-
-
-def apply_knn_imputation(df, n_neighbors=5):
-    knn_inputer = KNNImputer(n_neighbors=n_neighbors)
-    imputed_array = knn_inputer.fit_transform(df)
-    return pd.DataFrame(imputed_array, columns=df.columns, index=df.index)
-
-
-def apply_simple_imputation(df, strategies_dict):
-    df_copy = df.copy()
-    for column, strategy in strategies_dict.items():
-        if strategy in ['delete', 'knn']:
-            continue
-        if column in df_copy.columns:
-            inputer = SimpleImputer(strategy=strategy)
-            df_copy[[column]] = inputer.fit_transform(df_copy[[column]])
-    return df_copy
-
-
-def apply_imputations(df, strategies_dict, knn_n_neighbors=5):
-    df_filled = df.copy()
-    df_filled = remove_columns(df_filled, get_columns_to_delete(strategies_dict))
-    if 'knn' in strategies_dict.values():
-        df_filled = apply_knn_imputation(df_filled, knn_n_neighbors)
-    return apply_simple_imputation(df_filled, strategies_dict)
-
-
-# === Final cleaned dataset ===
-df_clean = apply_imputations(df_raw, imputation_strategies)
-X = df_clean.drop(columns=['target'])
-y = df_clean['target']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-# === Define scalers and models ===
-scalers = {
-    "NoScaling": None,
-    "StandardScaler": StandardScaler(),
-    "MinMaxScaler": MinMaxScaler()
-}
-
-models = {
-    "LogisticRegression": lambda: LogisticRegression(),
-    "DecisionTreeClassifier": lambda: DecisionTreeClassifier(),
-    "RandomForestClassifier": lambda: RandomForestClassifier(),
-    "XGBClassifier": lambda: XGBClassifier(),
-    "LightGBM": lambda: lgb.LGBMClassifier(),
-    "Naive Bayes": lambda: GaussianNB(),
+MODEL_FACTORIES = {
+    "LogisticRegression": LogisticRegression,
+    "DecisionTreeClassifier": DecisionTreeClassifier,
+    "RandomForestClassifier": RandomForestClassifier,
+    "XGBClassifier": XGBClassifier,
+    "LightGBM": lambda: lgb.LGBMClassifier(verbose=-1),
+    "NaiveBayes": GaussianNB,
     "SVC": lambda: SVC(probability=True),
-    "KNeighborsClassifier": lambda: KNeighborsClassifier()
+    "KNeighborsClassifier": KNeighborsClassifier,
 }
 
-# === Define hyperparameter search grids ===
-param_grids = {
-    "LogisticRegression": {
-        "clf__C": uniform(0.1, 10),
-        "clf__penalty": ['l2', 'l1'],
-        "clf__solver": ['saga', 'liblinear'],
-        "clf__max_iter": randint(500, 2000)
-    },
-    "DecisionTreeClassifier": {
-        "clf__criterion": ['gini', 'entropy', 'log_loss'],
-        "clf__max_depth": randint(3, 20),
-        "clf__min_samples_split": randint(2, 20),
-        "clf__min_samples_leaf": randint(1, 10),
-        "clf__max_features": ['sqrt', 'log2']
-    },
-    "RandomForestClassifier": {
-        "clf__n_estimators": randint(20, 200),
-        "clf__criterion": ['gini', 'entropy', 'log_loss'],
-        "clf__max_depth": randint(2, 20),
-        "clf__min_samples_split": randint(2, 20),
-        "clf__min_samples_leaf": randint(1, 10),
-        "clf__max_features": ['sqrt', 'log2']
-    },
-    "XGBClassifier": {
-        "clf__n_estimators": randint(50, 500),
-        "clf__max_depth": randint(3, 20),
-        "clf__learning_rate": uniform(0.01, 0.5),
-        "clf__subsample": uniform(0.7, 0.3),
-        "clf__colsample_bytree": uniform(0.7, 0.3),
-        "clf__gamma": uniform(0, 5),
-        "clf__reg_alpha": uniform(0, 1),
-        "clf__reg_lambda": uniform(0, 1)
-    },
-    "LightGBM": {
-        "clf__n_estimators": randint(50, 500),
-        "clf__learning_rate": uniform(0.01, 0.5),
-        "clf__num_leaves": randint(31, 100),
-        "clf__max_depth": randint(5, 20),
-        "clf__reg_alpha": uniform(0, 1),
-        "clf__reg_lambda": uniform(0, 1),
-        "clf__bagging_fraction": uniform(0.5, 0.5),
-        "clf__feature_fraction": uniform(0.5, 0.5)
-
-    },
-    "Naive Bayes": {},
-    "SVC": {
-        "clf__C": uniform(0.1, 10),
-        "clf__kernel": ['linear', 'rbf', 'poly', 'sigmoid'],
-        "clf__gamma": ['scale', 'auto']
-    },
-    "KNeighborsClassifier": {
-        "clf__n_neighbors": randint(3, 15),
-        "clf__weights": ['uniform', 'distance'],
-        "clf__metric": ['euclidean', 'manhattan'],
-        "clf__algorithm": ['auto', 'ball_tree', 'kd_tree', 'brute'],
-        "clf__leaf_size": randint(10, 100)
-    }
-}
-
-# === Scoring metrics ===
-scoring = {
-    'accuracy': make_scorer(accuracy_score),
-    'precision': make_scorer(precision_score),
-    'recall': make_scorer(recall_score),
-    'f1': make_scorer(f1_score),
-    'roc_auc': make_scorer(roc_auc_score)
-}
+set_config(transform_output="pandas")
+warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
+warnings.filterwarnings("ignore")
 
 
-# === Utility functions ===
-def clean_params(params, round_digits=3):
-    def convert(v):
-        if isinstance(v, (np.floating, float)):
-            return round(float(v), round_digits)
-        elif isinstance(v, (np.integer, int)):
-            return int(v)
-        return v
-
-    return {k: convert(v) for k, v in params.items()}
-
-
-def log_cv_results(estimator_name, preprocessor_name, metrics):
-    out_path = os.path.join(base_dir, "results", "metrics", "train_cv_metrics.csv")
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    result_row = {
-        "timestamp": datetime.now().isoformat(),
-        "model": estimator_name,
-        "scaler": preprocessor_name,
-        "accuracy": metrics["test_accuracy"].mean(),
-        "precision": metrics["test_precision"].mean(),
-        "recall": metrics["test_recall"].mean(),
-        "f1": metrics["test_f1"].mean(),
-        "roc_auc": metrics["test_roc_auc"].mean(),
-        "fit_time": metrics["fit_time"].mean(),
-        "score_time": metrics["score_time"].mean()
-    }
-    file_exists = os.path.isfile(out_path)
-    with open(out_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=result_row.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(result_row)
-
-
-def log_best_params(estimator_name, preprocessor_name, best_score, best_params):
-    out_path = os.path.join(base_dir, "results", "metrics", "best_params.json")
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    try:
-        with open(out_path, "r") as f:
-            existing = json.load(f)
-    except:
-        existing = {}
-    key = f"{estimator_name} + {preprocessor_name}"
-    existing[key] = {"best_score": round(best_score, 3), "best_params": best_params}
-    with open(out_path, "w") as f:
-        json.dump(existing, f, indent=4)
-
-
-# === Evaluation and pipeline logic ===
-def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels):
-    if not param_grid:
-        print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
-        return None, None
-    print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
-    search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=10, scoring='f1',
-                                cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
-    search.fit(X_data, y_labels)
-    best_params = clean_params(search.best_params_)
-    print(f"   → Best F1: {search.best_score_:.3f}\n", json.dumps(best_params, indent=4))
-    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params)
-    return search.best_score_, best_params
-
-def evaluate_pipeline(estimator_name, preprocessor_name, preprocessor, X_train_features, y_train_labels, X_test_features, y_test_labels, is_training=True):
-    if preprocessor is None and estimator_name == "SVC":
-        print(f"  Skipping NoScaling for {estimator_name} (requires scaled data)")
-        return
-    pipe_steps = []
-    if preprocessor is not None:
-        pipe_steps.append(("scaler", preprocessor))
-
-    pipe_steps.append(("smote", SMOTE(random_state=42)))
-
-    model_factory = models[estimator_name]
-    estimator = model_factory() if callable(model_factory) else model_factory
-    if estimator_name == "LightGBM":
-        estimator = lgb.LGBMClassifier(**estimator.get_params(), verbose=-1)
-
-    pipe_steps.append(("clf", estimator))  # <- zawsze dodajemy klasyfikator
-
-    pipe = ImbPipeline(pipe_steps)
-
-    if is_training:
-        metrics = cross_validate(pipe, X_train_features, y_train_labels, cv=5, scoring=scoring)
-        print(f"  Scaler: {preprocessor_name:<15} | "
-              f"Acc: {metrics['test_accuracy'].mean():.3f}  "
-              f"Prec: {metrics['test_precision'].mean():.3f}  "
-              f"Rec: {metrics['test_recall'].mean():.3f}  "
-              f"F1: {metrics['test_f1'].mean():.3f}  "
-              f"ROC_AUC: {metrics['test_roc_auc'].mean():.3f}  "
-              f"Train Time: {metrics['fit_time'].mean():.3f}s  "
-              f"Test Time: {metrics['score_time'].mean():.3f}s")
-        param_dist = param_grids.get(estimator_name, {})
-        if param_dist:
-            run_random_search(pipe, param_dist, estimator_name, preprocessor_name, X_train_features, y_train_labels)
-    else:
-        pipe.fit(X_train_features, y_train_labels)
-        y_pred = pipe.predict(X_test_features)
-        y_proba = pipe.predict_proba(X_test_features)[:, 1] if hasattr(pipe.named_steps["clf"], "predict_proba") else None
-        print(f"  Scaler: {preprocessor_name:<15} | "
-              f"Accuracy:  {accuracy_score(y_test_labels, y_pred):.3f}  "
-              f"Precision: {precision_score(y_test_labels, y_pred):.3f}  "
-              f"Recall:    {recall_score(y_test_labels, y_pred):.3f}  "
-              f"F1-score:  {f1_score(y_test_labels, y_pred):.3f}", end='')
-        if y_proba is not None:
-            print(f"  ROC AUC: {roc_auc_score(y_test_labels, y_proba):.3f}")
+def build_param_distributions(spec: dict) -> dict:
+    """
+    Zamienia specyfikację z YAML:
+      {'clf__C': {'distribution':'uniform','loc':0.1,'scale':10}, ...}
+    w:
+      {'clf__C': uniform(0.1,10), ...}
+    Listy i pusty dict zostawiamy bez zmian.
+    """
+    dist_map = {'uniform': uniform, 'randint': randint}
+    pdists = {}
+    for param, val in spec.items():
+        if isinstance(val, dict) and 'distribution' in val:
+            dist_name = val['distribution']
+            kwargs = {k: v for k, v in val.items() if k != 'distribution'}
+            pdists[param] = dist_map[dist_name](**kwargs)
         else:
-            print("  ROC AUC: brak (model nie wspiera predict_proba)")
+            # lista lub pusta dict
+            pdists[param] = val
+    return pdists
 
 
-# === Run all models with all scalers ===
+def evaluate_pipeline(
+    name: str,
+    factory,
+    scaler,
+    X: pd.DataFrame,
+    y: pd.Series,
+    raw_param_grid: dict,
+    scoring: dict,
+    cv: int,
+    random_state: int,
+    n_iter_search: int,
+    n_jobs: int,
+    scoring_for_search: str
+):
+    if scaler is None and name == "SVC":
+        print(f"  Skipping NoScaling for {name}")
+        return
+
+    steps = []
+    if scaler is not None:
+        steps.append(("scaler", scaler))
+    steps.append(("smote", SMOTE(random_state=random_state)))
+    model = factory()
+    steps.append(("clf", model))
+
+    pipe = ImbPipeline(steps)
+
+    # 1) Cross-validate
+    cv_res = cross_validate(
+        pipe, X, y,
+        cv=cv,
+        scoring=scoring,
+        n_jobs=n_jobs,
+        return_train_score=False
+    )
+
+    log_cv_results(
+        estimator_name=name,
+        preprocessor_name=(scaler.__class__.__name__ if scaler else "NoScaling"),
+        metrics=cv_res
+    )
+
+    # 2) RandomizedSearchCV
+    if raw_param_grid:
+        param_dist = build_param_distributions(raw_param_grid)
+        run_random_search(
+            pipeline=pipe,
+            param_grid=param_dist,
+            estimator_name=name,
+            preprocessor_name=(scaler.__class__.__name__ if scaler else "NoScaling"),
+            X_data=X,
+            y_labels=y
+        )
+
+
 if __name__ == "__main__":
-    print(
-        "-------------------------------------  BENCHMARK  ------------------------------------------------------------")
-    print(" --------- Wyniki na danych treningowych --------------")
-    for model_name, model in models.items():
-        print(f"\nModel: {model_name}")
-        for scaler_name, scaler in scalers.items():
-            evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=True)
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-    print(" --------- Wyniki na danych testowych ----------------")
-    for model_name, model in models.items():
-        print(f"\nModel: {model_name}")
-        for scaler_name, scaler in scalers.items():
-            evaluate_pipeline(model_name, scaler_name, scaler, X_train, y_train, X_test, y_test, is_training=False)
+    parser = argparse.ArgumentParser(
+        description="Benchmark modeli klasyfikacyjnych na danych syntetycznych"
+    )
+    parser.add_argument(
+        "--config-dir",
+        default=str(PROJECT_ROOT / "src" / "config"),
+        help="katalog z preprocessing.yaml, models.yaml, training.yaml, scalers.yaml, scoring.yaml"
+    )
+    parser.add_argument(
+        "--data-dir",
+        default=str(PROJECT_ROOT / "data"),
+        help="katalog z train.csv, valid.csv, test.csv"
+    )
+    args = parser.parse_args()
+
+    # 1) Load configs
+    cfg_pre      = load_config(os.path.join(args.config_dir, "preprocessing.yaml"))
+    raw_param_grids = load_config(os.path.join(args.config_dir, "models.yaml"))
+    cfg_train    = load_config(os.path.join(args.config_dir, "training.yaml"))
+    cfg_scalers  = load_config(os.path.join(args.config_dir, "scalers.yaml"))
+    cfg_scoring  = load_config(os.path.join(args.config_dir, "scoring.yaml"))
+
+    # 2) Load & clean data
+    df = pd.read_csv(os.path.join(args.data_dir, "train.csv"))
+    df_clean = apply_imputations(df, cfg_pre["imputation_strategies"])
+    target_col = cfg_pre.get("target_col", "target")
+    X = df_clean.drop(columns=[target_col])
+    y = df_clean[target_col]
+
+    # 3) Split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=cfg_train["test_size"],
+        random_state=cfg_train["random_state"]
+    )
+
+    # 4) Prepare scalers
+    SCALERS = {}
+    for name, spec in cfg_scalers.items():
+        if spec is None:
+            SCALERS[name] = None
+        else:
+            module = __import__(spec["module"], fromlist=[spec["class"]])
+            cls = getattr(module, spec["class"])
+            SCALERS[name] = cls(**spec.get("params", {}))
+
+    # 5) Run benchmark
+    print("\n=== START BENCHMARK ===")
+    for model_name, factory in MODEL_FACTORIES.items():
+        print(f"\n-- Model: {model_name} --")
+        grid_spec = raw_param_grids.get(model_name, {})
+        for scaler_name, scaler in SCALERS.items():
+            print(f" Scaler: {scaler_name}")
+            evaluate_pipeline(
+                name=model_name,
+                factory=factory,
+                scaler=scaler,
+                X=X_train,
+                y=y_train,
+                raw_param_grid=grid_spec,
+                scoring=cfg_scoring,
+                cv=cfg_train["cv"],
+                random_state=cfg_train["random_state"],
+                n_iter_search=cfg_train.get("n_iter_search", 10),
+                n_jobs=cfg_train.get("n_jobs", -1),
+                scoring_for_search=cfg_train.get("scoring_for_search", "f1")
+            )
+
+    print("\n=== BENCHMARK ZAKOŃCZONY ===")
