@@ -3,15 +3,14 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
-
+from typing import Any, Dict, List
+import joblib
 import numpy as np
 import pandas as pd
 import yaml
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.model_selection import RandomizedSearchCV
 
-# definiujemy base_dir tylko, jeśli chcemy mieć tu wygodną ścieżkę
 base_dir = Path(__file__).resolve().parent.parent
 
 
@@ -109,12 +108,19 @@ def log_cv_results(estimator_name, preprocessor_name, metrics):
             writer.writeheader()
         writer.writerow(result_row)
 
-
-def log_best_params(estimator_name: str, preprocessor_name: str, best_score: float, best_params: Dict[str, Any],
-                    metric_name: str = "f1", base_dir: str = ".", random_state: int | None = None,
-                    ) -> None:
-    out_path = Path(base_dir) / "results" / "metrics" / "best_params_flat.csv"
+def log_best_params(
+            estimator_name: str,
+            preprocessor_name: str,
+            best_score: float,
+            best_params: Dict[str, Any],
+            all_params: List[str],
+            metric_name: str = "f1",
+            base_dir: str = ".",
+            random_state: int | None = None,
+    ) -> None:
+    out_path = Path(base_dir) / "results" / "metrics" / "best_params.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
     row = {
         "estimator": estimator_name,
         "preprocessor": preprocessor_name,
@@ -124,38 +130,49 @@ def log_best_params(estimator_name: str, preprocessor_name: str, best_score: flo
     }
     if random_state is not None:
         row["random_state"] = random_state
-    for k, v in best_params.items():
-        clean_name = k.split("__")[-1]  # usuń np. 'clf__'
-        row[f"param_{clean_name}"] = v
+    for param_name in all_params:
+        clean_name = param_name.replace("param_", "")
+        key = f"clf__{clean_name}"
 
-    fieldnames = list(row.keys())
+        if key in best_params:
+            row[param_name] = best_params[key]
+        else:
+            row[param_name] = ""
+
+    fieldnames = [
+                     "estimator",
+                     "preprocessor",
+                     "metric",
+                     "best_score",
+                     "run_datetime",
+                     "random_state"
+                 ] + sorted(all_params)
 
     mode = "a" if out_path.is_file() else "w"
+
     with out_path.open(mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-
         if mode == "w":
             writer.writeheader()
-        else:
-            missing_cols = set(fieldnames) - set(writer.fieldnames)
-            if missing_cols:
-                raise RuntimeError(
-                    f"Plik {out_path} istnieje, ale brak kolumn {missing_cols}. "
-                    "Najłatwiej usuń plik lub zapisz do nowej nazwy."
-                )
-
         writer.writerow(row)
 
 
-def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels):
+def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels, all_params):
     if not param_grid:
         print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
-        return None, None
+        return None
     print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
     search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=10, scoring='f1',
                                 cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
+
+
     search.fit(X_data, y_labels)
     best_params = clean_params(search.best_params_)
-    print(f"   → Best F1: {search.best_score_:.3f}\n", json.dumps(best_params, indent=4))
-    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params)
+    # Zapis parametrów
+    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params, all_params)
+    # Zapis modelu
+    model_dir = Path("results") / "models"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    model_filename = f"best_{estimator_name}_{preprocessor_name}.pkl"
+    joblib.dump(search.best_estimator_, model_dir / model_filename)
     return search.best_score_, best_params

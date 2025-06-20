@@ -1,0 +1,87 @@
+import os
+import pandas as pd
+import joblib
+from sklearn import set_config
+from sklearn.metrics import accuracy_score, roc_auc_score, precision_score, recall_score, f1_score
+
+set_config(transform_output="pandas")
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+data_dir = os.path.join(base_dir, 'data')
+results_dir = os.path.join(base_dir, 'results')
+models_dir = os.path.join(results_dir, 'models')
+metrics_dir = os.path.join(results_dir, 'metrics')
+predictions_dir = os.path.join(results_dir, 'predictions')
+
+os.makedirs(metrics_dir, exist_ok=True)
+os.makedirs(predictions_dir, exist_ok=True)
+
+model_names = [
+    'DecisionTreeClassifier',
+    'KNeighborsClassifier',
+    'LightGBM',
+    'LogisticRegression',
+    'RandomForestClassifier'
+]
+scalers = ['MinMaxScaler', 'NoScaling', 'StandardScaler']
+
+path_test = os.path.join(data_dir, 'test.csv')
+path_valid = os.path.join(data_dir, 'valid.csv')
+
+test = pd.read_csv(path_test)
+X_test = test.drop('target', axis=1)
+y_test = test['target']
+X_valid = pd.read_csv(path_valid)
+
+metrics = []
+
+for model_name in model_names:
+    for scaler_name in scalers:
+        model_path = os.path.join(models_dir, f'best_{model_name}_{scaler_name}.pkl')
+        if not os.path.exists(model_path):
+            print(f"Brak modelu: {model_path}, pomijam.")
+            continue
+
+        model = joblib.load(model_path)
+
+        if hasattr(model, "feature_names_in_"):
+            X_test_eval = X_test[model.feature_names_in_]
+            X_valid_eval = X_valid[model.feature_names_in_]
+        else:
+            X_test_eval = X_test
+            X_valid_eval = X_valid
+
+        y_pred = model.predict(X_test_eval)
+        y_proba = model.predict_proba(X_test_eval)[:, 1] if hasattr(model, "predict_proba") else None
+        acc = accuracy_score(y_test, y_pred)
+        roc = roc_auc_score(y_test, y_proba) if y_proba is not None else None
+        prec = precision_score(y_test, y_pred)
+        rec = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+
+        metrics.append({
+            'model': model_name,
+            'scaler': scaler_name,
+            'accuracy': acc,
+            'roc_auc': roc,
+            'precision': prec,
+            'recall': rec,
+            'f1': f1
+        })
+
+        valid_pred = model.predict(X_valid_eval)
+        valid_proba = model.predict_proba(X_valid_eval)[:, 1] if hasattr(model, "predict_proba") else None
+
+        pd.DataFrame({
+            'prediction': valid_pred,
+            'probability': valid_proba
+        }).to_csv(os.path.join(predictions_dir, f'valid_predictions_{model_name}_{scaler_name}.csv'), index=False)
+
+        pd.DataFrame({
+            'true': y_test,
+            'prediction': y_pred,
+            'probability': y_proba
+        }).to_csv(os.path.join(predictions_dir, f'test_predictions_{model_name}_{scaler_name}.csv'), index=False)
+
+metrics_df = pd.DataFrame(metrics)
+metrics_df.to_csv(os.path.join(metrics_dir, 'test_metrics.csv'), index=False)
+print("Ewaluacja zakończona, wyniki zapisane.")
