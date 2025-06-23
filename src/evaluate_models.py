@@ -61,11 +61,11 @@ for model_name in model_names:
         metrics.append({
             'model': model_name,
             'scaler': scaler_name,
-            'accuracy': acc,
-            'roc_auc': roc,
-            'precision': prec,
-            'recall': rec,
-            'f1': f1
+            'accuracy': round(acc, 3),
+            'roc_auc': round(roc, 3) if roc is not None else None,
+            'precision': round(prec, 3),
+            'recall': round(rec, 3),
+            'f1': round(f1, 3)
         })
 
         valid_pred = model.predict(X_valid_eval)
@@ -87,5 +87,6 @@ for model_name in model_names:
         test_df.to_csv(os.path.join(predictions_dir, f'test_predictions_{model_name}_{scaler_name}.csv'), index=False)
 
 metrics_df = pd.DataFrame(metrics)
+metrics_df.columns = ['model', 'scaler', 'accuracy', 'roc_auc', 'precision', 'recall', 'f1']
 metrics_df.to_csv(os.path.join(metrics_dir, 'test_metrics.csv'), index=False)
 print("Ewaluacja zakończona, wyniki zapisane.")

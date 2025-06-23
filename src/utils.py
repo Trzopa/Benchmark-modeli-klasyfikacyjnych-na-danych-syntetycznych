@@ -87,19 +87,19 @@ def clean_params(params, round_digits=3):
 
 
 def log_cv_results(estimator_name, preprocessor_name, metrics):
-    out_path = os.path.join(base_dir, "results", "metrics", "train_cv_metrics.csv")
+    out_path = os.path.join(base_dir, "results", "metrics", "train_metrics.csv")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     result_row = {
         "timestamp": datetime.now().isoformat(),
         "model": estimator_name,
         "scaler": preprocessor_name,
-        "accuracy": metrics["test_accuracy"].mean(),
-        "precision": metrics["test_precision"].mean(),
-        "recall": metrics["test_recall"].mean(),
-        "f1": metrics["test_f1"].mean(),
-        "roc_auc": metrics["test_roc_auc"].mean(),
-        "fit_time": metrics["fit_time"].mean(),
-        "score_time": metrics["score_time"].mean()
+        "accuracy": round(metrics["test_accuracy"].mean(), 3),
+        "precision": round(metrics["test_precision"].mean(), 3),
+        "recall": round(metrics["test_recall"].mean(), 3),
+        "f1": round(metrics["test_f1"].mean(), 3),
+        "roc_auc": round(metrics["test_roc_auc"].mean(), 3),
+        "fit_time": round(metrics["fit_time"].mean(), 3),
+        "score_time": round(metrics["score_time"].mean(), 3)
     }
     file_exists = os.path.isfile(out_path)
     with open(out_path, "a", newline="") as f:
@@ -120,12 +120,7 @@ def log_best_params(
         random_state: int | None = None,
 ) -> None:
     out_path = Path(base_dir) / "results" / "metrics" / "best_params.csv"
-
-    if out_path.parent.exists():
-        mode = "w"
-    else:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        mode = "w"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     row = {
         "estimator": estimator_name,
@@ -142,19 +137,21 @@ def log_best_params(
         row[param_name] = best_params.get(key, "")
 
     fieldnames = [
-                     "estimator",
-                     "preprocessor",
-                     "metric",
-                     "best_score",
-                     "run_datetime",
-                     "random_state"
-                 ] + sorted(all_params)
+        "estimator",
+        "preprocessor",
+        "metric",
+        "best_score",
+        "run_datetime",
+        "random_state"
+    ] + sorted(all_params)
 
-    with out_path.open(mode, newline="", encoding="utf-8") as f:
+    file_exists = out_path.exists() and out_path.stat().st_size > 0
+
+    with out_path.open("a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
+        if not file_exists:
+            writer.writeheader()
         writer.writerow(row)
-
 
 def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels, all_params,
                       base_dir="."):
