@@ -9,7 +9,9 @@ from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
 from scipy.stats import uniform, randint
 from sklearn import set_config
+from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_validate
 from sklearn.naive_bayes import GaussianNB
@@ -17,8 +19,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
 
 from src.utils import (
     load_config,
@@ -27,6 +27,7 @@ from src.utils import (
     log_cv_results
 )
 
+base_dir = Path(__file__).resolve().parent.parent
 model_factories = {
     "LogisticRegression": LogisticRegression,
     "DecisionTreeClassifier": DecisionTreeClassifier,
@@ -60,33 +61,37 @@ def evaluate_pipeline(
         name: str,
         factory,
         scaler,
-        X: pd.DataFrame,
-        y: pd.Series,
-        raw_param_grid: dict,
-        scoring: dict,
-        cv: int,
-        random_state: int,
-        n_iter_search: int,
-        n_jobs: int,
-        scoring_for_search: str,
-        all_params: list,
-        imputation_strategies: dict
+        X,
+        y,
+        raw_param_grid,
+        scoring,
+        cv,
+        random_state,
+        n_iter_search,
+        n_jobs,
+        scoring_for_search,
+        all_params,
+        imputation_strategies
 ):
     if scaler is None and name == "SVC":
         print(f"  Skipping NoScaling for {name}")
         return
+
     imputers = []
     for col, strategy in imputation_strategies.items():
         if strategy == 'drop':
             continue
-        imputers.append((f'imputer_{col}', SimpleImputer(strategy=strategy), [col]))
+        if col not in X.columns:
+            continue
+        if strategy == 'knn':
+            imputers.append((f'imputer_{col}', KNNImputer(), [col]))
+        else:
+            imputers.append((f'imputer_{col}', SimpleImputer(strategy=strategy), [col]))
 
     preprocessor = ColumnTransformer(
         transformers=imputers,
         remainder='passthrough'
     )
-
-
 
     steps = [('imputer', preprocessor)]
 
@@ -110,6 +115,7 @@ def evaluate_pipeline(
         preprocessor_name=(scaler.__class__.__name__ if scaler else "NoScaling"),
         metrics=cv_res
     )
+
     if raw_param_grid:
         param_dist = build_param_distributions(raw_param_grid)
         run_random_search(
@@ -119,8 +125,12 @@ def evaluate_pipeline(
             preprocessor_name=(scaler.__class__.__name__ if scaler else "NoScaling"),
             X_data=X,
             y_labels=y,
-            all_params=all_params
+            all_params=all_params,
+            base_dir=base_dir
         )
+
+    return pipe
+
 
 if __name__ == "__main__":
     project_root = Path(__file__).resolve().parent.parent
@@ -203,5 +213,4 @@ if __name__ == "__main__":
                 all_params=all_params,
                 imputation_strategies=cfg_pre["imputation_strategies"]
             )
-
     print("\n=== BENCHMARK ZAKOŃCZONY ===")

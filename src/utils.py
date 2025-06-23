@@ -3,7 +3,8 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, Any, List
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -12,7 +13,6 @@ from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.model_selection import RandomizedSearchCV
 
 base_dir = Path(__file__).resolve().parent.parent
-
 
 def load_config(path: str) -> Dict[str, Any]:
     ext = Path(path).suffix.lower()
@@ -108,18 +108,24 @@ def log_cv_results(estimator_name, preprocessor_name, metrics):
             writer.writeheader()
         writer.writerow(result_row)
 
+
 def log_best_params(
-            estimator_name: str,
-            preprocessor_name: str,
-            best_score: float,
-            best_params: Dict[str, Any],
-            all_params: List[str],
-            metric_name: str = "f1",
-            base_dir: str = ".",
-            random_state: int | None = None,
-    ) -> None:
+        estimator_name: str,
+        preprocessor_name: str,
+        best_score: float,
+        best_params: Dict[str, Any],
+        all_params: List[str],
+        metric_name: str = "f1",
+        base_dir: str = ".",
+        random_state: int | None = None,
+) -> None:
     out_path = Path(base_dir) / "results" / "metrics" / "best_params.csv"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if out_path.parent.exists():
+        mode = "w"
+    else:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "w"
 
     row = {
         "estimator": estimator_name,
@@ -133,11 +139,7 @@ def log_best_params(
     for param_name in all_params:
         clean_name = param_name.replace("param_", "")
         key = f"clf__{clean_name}"
-
-        if key in best_params:
-            row[param_name] = best_params[key]
-        else:
-            row[param_name] = ""
+        row[param_name] = best_params.get(key, "")
 
     fieldnames = [
                      "estimator",
@@ -148,30 +150,34 @@ def log_best_params(
                      "random_state"
                  ] + sorted(all_params)
 
-    mode = "a" if out_path.is_file() else "w"
-
     with out_path.open(mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        if mode == "w":
-            writer.writeheader()
+        writer.writeheader()
         writer.writerow(row)
 
 
-def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels, all_params):
+def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels, all_params,
+                      base_dir="."):
     if not param_grid:
         print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
         return None
     print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → start...")
-    search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, n_iter=10, scoring='f1',
-                                cv=5, random_state=42, n_jobs=-1, verbose=1, error_score="raise")
-
+    search = RandomizedSearchCV(
+        estimator=pipeline,
+        param_distributions=param_grid,
+        n_iter=10,
+        scoring='f1',
+        cv=5,
+        random_state=42,
+        n_jobs=-1,
+        verbose=1,
+        error_score="raise"
+    )
 
     search.fit(X_data, y_labels)
     best_params = clean_params(search.best_params_)
-    # Zapis parametrów
-    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params, all_params)
-    # Zapis modelu
-    model_dir = Path("results") / "models"
+    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params, all_params, base_dir=base_dir)
+    model_dir = Path(base_dir) / "results" / "metrics"
     model_dir.mkdir(parents=True, exist_ok=True)
     model_filename = f"best_{estimator_name}_{preprocessor_name}.pkl"
     joblib.dump(search.best_estimator_, model_dir / model_filename)

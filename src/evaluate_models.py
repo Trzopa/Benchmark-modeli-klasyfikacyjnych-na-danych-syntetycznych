@@ -8,7 +8,7 @@ set_config(transform_output="pandas")
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 data_dir = os.path.join(base_dir, 'data')
 results_dir = os.path.join(base_dir, 'results')
-models_dir = os.path.join(results_dir, 'models')
+models_dir = os.path.join(results_dir, 'metrics')
 metrics_dir = os.path.join(results_dir, 'metrics')
 predictions_dir = os.path.join(results_dir, 'predictions')
 
@@ -71,16 +71,20 @@ for model_name in model_names:
         valid_pred = model.predict(X_valid_eval)
         valid_proba = model.predict_proba(X_valid_eval)[:, 1] if hasattr(model, "predict_proba") else None
 
-        pd.DataFrame({
+        valid_df = pd.DataFrame({
             'prediction': valid_pred,
             'probability': valid_proba
-        }).to_csv(os.path.join(predictions_dir, f'valid_predictions_{model_name}_{scaler_name}.csv'), index=False)
+        })
+        valid_df['probability'] = valid_df['probability'].round(3)
+        valid_df.to_csv(os.path.join(predictions_dir, f'valid_predictions_{model_name}_{scaler_name}.csv'), index=False)
 
-        pd.DataFrame({
+        test_df = pd.DataFrame({
             'true': y_test,
             'prediction': y_pred,
             'probability': y_proba
-        }).to_csv(os.path.join(predictions_dir, f'test_predictions_{model_name}_{scaler_name}.csv'), index=False)
+        })
+        test_df['probability'] = test_df['probability'].round(3)
+        test_df.to_csv(os.path.join(predictions_dir, f'test_predictions_{model_name}_{scaler_name}.csv'), index=False)
 
 metrics_df = pd.DataFrame(metrics)
 metrics_df.to_csv(os.path.join(metrics_dir, 'test_metrics.csv'), index=False)
