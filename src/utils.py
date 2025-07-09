@@ -34,9 +34,9 @@ def save_metrics(df: pd.DataFrame, path: str) -> None:
     df.to_csv(path, index=False)
 
 
-def save_predictions(ids: pd.Series, preds: pd.Series, path: str) -> None:
+def save_predictions(ids: pd.Series, pred: pd.Series, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    out = pd.DataFrame({'id': ids, 'y_pred': preds})
+    out = pd.DataFrame({'id': ids, 'y_pred': pred})
     out.to_csv(path, index=False)
 
 
@@ -116,10 +116,10 @@ def log_best_params(
         best_params: Dict[str, Any],
         all_params: List[str],
         metric_name: str = "f1",
-        base_dir: str = ".",
+        base_dirs: str = ".",
         random_state: int | None = None,
 ) -> None:
-    out_path = Path(base_dir) / "results" / "metrics" / "best_params.csv"
+    out_path = Path(base_dirs) / "results" / "metrics" / "best_params.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     row = {
@@ -154,7 +154,7 @@ def log_best_params(
         writer.writerow(row)
 
 def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X_data, y_labels, all_params,
-                      base_dir="."):
+                      base_dirs="."):
     if not param_grid:
         print(f"[RandomSearch] {estimator_name} + {preprocessor_name} → skipped (no parameters).")
         return None
@@ -173,8 +173,8 @@ def run_random_search(pipeline, param_grid, estimator_name, preprocessor_name, X
 
     search.fit(X_data, y_labels)
     best_params = clean_params(search.best_params_)
-    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params, all_params, base_dir=base_dir)
-    model_dir = Path(base_dir) / "results" / "metrics"
+    log_best_params(estimator_name, preprocessor_name, search.best_score_, best_params, all_params, base_dirs=base_dirs)
+    model_dir = Path(base_dirs) / "results" / "metrics"
     model_dir.mkdir(parents=True, exist_ok=True)
     model_filename = f"best_{estimator_name}_{preprocessor_name}.pkl"
     joblib.dump(search.best_estimator_, model_dir / model_filename)

@@ -77,19 +77,19 @@ def evaluate_pipeline(
         print(f"  Skipping NoScaling for {name}")
         return
 
-    imputers = []
+    inputer = []
     for col, strategy in imputation_strategies.items():
         if strategy == 'drop':
             continue
         if col not in X.columns:
             continue
         if strategy == 'knn':
-            imputers.append((f'imputer_{col}', KNNImputer(), [col]))
+            inputer.append((f'imputer_{col}', KNNImputer(), [col]))
         else:
-            imputers.append((f'imputer_{col}', SimpleImputer(strategy=strategy), [col]))
+            inputer.append((f'imputer_{col}', SimpleImputer(strategy=strategy), [col]))
 
     preprocessor = ColumnTransformer(
-        transformers=imputers,
+        transformers=inputer,
         remainder='passthrough'
     )
 
@@ -126,7 +126,7 @@ def evaluate_pipeline(
             X_data=X,
             y_labels=y,
             all_params=all_params,
-            base_dir=base_dir
+            base_dirs=base_dir
         )
 
     return pipe
@@ -213,4 +213,4 @@ if __name__ == "__main__":
                 all_params=all_params,
                 imputation_strategies=cfg_pre["imputation_strategies"]
             )
-    print("\n=== BENCHMARK ZAKOŃCZONY ===")
+    print("\n=== BENCHMARK COMPLETED ===")
