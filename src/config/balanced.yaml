@@ -1,5 +1,0 @@
-balancing:
-  method: smote
-  params:
-    k_neighbors: 5
-    random_state: 42
