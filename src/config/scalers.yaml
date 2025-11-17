@@ -1,11 +1,11 @@
-NoScaling: null
+scalers:
+  NoScaling: null
 
-StandardScaler:
-  module: sklearn.preprocessing
-  class: StandardScaler
-  params: {}
-
-MinMaxScaler:
-  module: sklearn.preprocessing
-  class: MinMaxScaler
-  params: {}
+  StandardScaler:
+    module: sklearn.preprocessing
+    class: StandardScaler
+    params: { }
+  MinMaxScaler:
+    module: sklearn.preprocessing
+    class: MinMaxScaler
+    params: { }
