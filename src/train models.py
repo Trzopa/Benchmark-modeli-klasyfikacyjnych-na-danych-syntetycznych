@@ -1,7 +1,11 @@
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+
+from imblearn.over_sampling import SMOTE
 from importlib import import_module
 
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.model_selection import GridSearchCV
 
 
 class Pipeline:
@@ -55,3 +59,23 @@ class Pipeline:
             })
 
         return models
+
+    def build_pipline(self):
+        return Pipeline([
+            ("balacing", SMOTE()),
+        ])
+
+    def prepare_features(self, data, target_column, preprocessing_config):
+        X = data.drop(column=[target_column])
+        y = data[target_column]
+        X = self.preprocessing_data(X, preprocessing_config)
+        return X, y
+
+    def search_cv(self, pipe, random_state):
+        search = GridSearchCV(
+            estimator=pipe,
+            n_jobs=-1,
+            scoring="f1",
+            verbose=1       )
+
+        return search
