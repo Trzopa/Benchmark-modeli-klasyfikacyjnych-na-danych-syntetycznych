@@ -96,7 +96,7 @@ XGBClassifier:
     loc: 0
     scale: 1
 
-LightGBM:
+LGBMClassifier:
   clf__n_estimators:
     distribution: randint
     low: 50

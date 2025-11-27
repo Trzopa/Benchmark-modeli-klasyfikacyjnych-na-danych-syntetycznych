@@ -1,3 +1,5 @@
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from imblearn.over_sampling import SMOTE
@@ -5,7 +7,13 @@ from importlib import import_module
 
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import FunctionTransformer
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+from sklearn.naive_bayes import GaussianNB
 
 
 class Pipeline:
@@ -24,6 +32,12 @@ class Pipeline:
             knn_inputer = KNNImputer(n_neighbors=5)
             data[knn_cols] = knn_inputer.fit_transform(data[knn_cols])
         return data
+
+    def prepare_features(self, data, target_column, preprocessing_config):
+        X = data.drop(column=[target_column])
+        y = data[target_column]
+        X = self.preprocessing_data(X, preprocessing_config)
+        return X, y
 
     def scaling(self, scalers_config, scaler_name):
         if scaler_name == "NoScaling" or scalers_config.get(scaler_name) is None:
@@ -60,22 +74,40 @@ class Pipeline:
 
         return models
 
-    def build_pipline(self):
-        return Pipeline([
-            ("balacing", SMOTE()),
-        ])
-
-    def prepare_features(self, data, target_column, preprocessing_config):
-        X = data.drop(column=[target_column])
-        y = data[target_column]
-        X = self.preprocessing_data(X, preprocessing_config)
-        return X, y
-
-    def search_cv(self, pipe, random_state):
-        search = GridSearchCV(
+    def grid_search_cv(self, pipe, random_state):
+        search = RandomizedSearchCV(
             estimator=pipe,
             n_jobs=-1,
             scoring="f1",
-            verbose=1       )
+            verbose=1)
 
         return search
+
+    def run(self, data, target_column, preprocessing_config):
+        X = data.drop[column=target_column]
+        y = data[target_column]
+        X = self.preprocessing_data(X, preprocessing_config)
+        scaler1 = StandardScaler()
+        scaler2 = MinMaxScaler()
+        X_stan, y_stan = scaler1.fit_transform(X, y)
+
+        X_mm, y_mm = scaler2.fit_transform(X, y)
+        balance = SMOTE()
+        X_b, y_b = balance.fit_resample(X, y)
+        logic_cl = LogisticRegression()
+        logic_cl.fit(X_b, y_b)
+        treeml = DecisionTreeClassifier()
+        treeml.fit(X_b, y_b)
+        forestml = RandomForestClassifier()
+        forestml.fit(X_b, y_b)
+        xbml = XGBClassifier()
+        xbml.fit(X_b, y_b)
+        lxbml = LGBMClassifier()
+        lxbml.fit(X_b, y_b)
+        gml = GaussianNB()
+        gml.fit(X_b, y_b)
+        svcml = SVC()
+        svcml.fit(X_b, y_b)
+        knml = KNeighborsClassifier()
+        knml.fit(X_b, y_b)
+        StratifiedKFold(n_splits=5, shuffle=True, random_state=42)

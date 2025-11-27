@@ -69,6 +69,8 @@ def parse_models_config(models_config):
     return models
 
 
+
+
 if __name__ == "__main__":
     root = Path.cwd().parent
     # d = load_data(f"{root}/data/test.csv")
