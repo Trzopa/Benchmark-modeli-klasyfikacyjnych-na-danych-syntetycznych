@@ -1,15 +1,13 @@
-preprocessing:
-  imputation:
-    feature_0: knn
-    feature_1: knn
-    feature_3: knn
-    feature_5: knn
-    feature_12: delete
-    feature_14: delete
-    feature_15: delete
-    feature_16: mean
-    feature_17: mean
-    feature_19: knn
-    feature_20: knn
-    feature_21: delete
-    feature_24: knn
+feature_0: knn
+feature_1: knn
+feature_3: knn
+feature_5: knn
+feature_12: delete
+feature_14: delete
+feature_15: delete
+feature_16: mean
+feature_17: mean
+feature_19: knn
+feature_20: knn
+feature_21: delete
+feature_24: knn

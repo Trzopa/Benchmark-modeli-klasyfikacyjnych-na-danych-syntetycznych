@@ -1,6 +1,0 @@
-scalers:
-  NoScaling: null
-
-  StandardScaler: sklearn.preprocessing.StandardScaler
-
-  MinMaxScaler: sklearn.preprocessing.MinMaxScaler
