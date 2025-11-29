@@ -33,12 +33,15 @@ def save_params_model(model, scaler, training_time, accuracy_score_val, precisio
     return result
 
 
-def to_dataframe(self):
-    df = pd.DataFrame()
+def to_dataframe(results_list):
+    df = pd.DataFrame(results_list)
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs("results", exist_ok=True)
     file_path = os.path.join("results", f"results_{timestamp}.csv")
+
     df.to_csv(file_path, index=False)
+    print(f"Wyniki zapisane do: {file_path}")
     return df
 
 

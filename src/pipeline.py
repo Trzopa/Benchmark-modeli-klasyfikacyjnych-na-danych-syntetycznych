@@ -1,7 +1,10 @@
 import inspect
+import os
 import time
+from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 import uniform
 from imblearn.over_sampling import SMOTE
 from lightgbm import LGBMClassifier
@@ -165,9 +168,9 @@ class Pipeline:
 
         model_cls = self.get_model_class(model_name)
         pipelines_to_test = {
-            "standard": self.create_pipeline_with_scaler(model_cls, scaler=StandardScaler()),
-            "minmax": self.create_pipeline_with_scaler(model_cls, scaler=MinMaxScaler()),
-            "none": self.create_pipeline_with_scaler(model_cls, scaler=None),
+            "StandardScaler": self.create_pipeline_with_scaler(model_cls, scaler=StandardScaler()),
+            "MinMaxScaler": self.create_pipeline_with_scaler(model_cls, scaler=MinMaxScaler()),
+            "None": self.create_pipeline_with_scaler(model_cls, scaler=None),
         }
 
         return X_balanced, y_balanced, pipelines_to_test
@@ -186,7 +189,7 @@ class Pipeline:
 
             best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
 
-            formatted_result = save_params_model(  # Używamy self.save_params_model
+            formatted_result = save_params_model(
                 model=model_name,
                 scaler=scaler_name,
                 training_time=best_results['duration'],
@@ -245,6 +248,16 @@ class Pipeline:
 
         return all_results
 
+    def to_dataframe(self, results_list):
+        df = pd.DataFrame(results_list)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        os.makedirs("results", exist_ok=True)
+        file_path = os.path.join("results", f"results_{timestamp}.csv")
+
+        df.to_csv(file_path, index=False)
+        print(f"Wyniki zapisane do: {file_path}")
+        return df
 
 if __name__ == "__main__":
     root = Path.cwd().parent
@@ -255,3 +268,4 @@ if __name__ == "__main__":
     pdata = p.preprocessing_data(data, preprocessing_file)
     all_models = p.run_all_models(data, preprocessing_file, model_file, False)
     all_models
+    results_df = p.to_dataframe(all_models)
