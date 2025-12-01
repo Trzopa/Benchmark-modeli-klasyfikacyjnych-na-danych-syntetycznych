@@ -23,7 +23,7 @@ def save_params_model(model, scaler, training_time, accuracy_score_val, precisio
     result = {
         "model": model,
         "scaler": scaler,
-        "time_trening": training_time,  # Zmieniono nazwę klucza na ang/pol
+        "time_trening": training_time,
         "accuracy_score": accuracy_score_val,
         "precision_score": precision_score_val,
         "recall_score": recall_score_val,
@@ -43,11 +43,3 @@ def to_dataframe(results_list):
     df.to_csv(file_path, index=False)
     print(f"Wyniki zapisane do: {file_path}")
     return df
-
-
-if __name__ == "__main__":
-    root = Path.cwd().parent
-    # d = load_data(f"{root}/data/test.csv")
-    # print(d)
-    c = load_config(f"config/training.yaml")
-    print(c)

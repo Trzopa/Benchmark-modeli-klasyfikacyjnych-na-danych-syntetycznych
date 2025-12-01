@@ -1,19 +1,17 @@
 import inspect
-import os
 import time
-from datetime import datetime
-from pathlib import Path
+import warnings
 
-import pandas as pd
 import uniform
 from imblearn.over_sampling import SMOTE
 from lightgbm import LGBMClassifier
 from scipy.stats import randint, uniform
+from sklearn import set_config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV, cross_validate
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -21,8 +19,11 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
+from utils import save_params_model
 
-from utils import load_config, load_data, save_params_model
+set_config(transform_output="pandas")
+warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
+warnings.filterwarnings("ignore")
 
 
 class Pipeline:
@@ -53,6 +54,8 @@ class Pipeline:
             "LogisticRegression": LogisticRegression,
             "KNeighborsClassifier": KNeighborsClassifier,
             "SVC": SVC,
+            # TODO warunek naitve bayyesa
+
             "NaiveBayes": GaussianNB,
             "DecisionTreeClassifier": DecisionTreeClassifier,
             "RandomForestClassifier": RandomForestClassifier,
@@ -139,25 +142,26 @@ class Pipeline:
     def train_model(self, X, y, pipe, model_name, scaler_name):
         start_time = time.time()
         pipe.fit(X, y)
-        stop_time = time.time()
-        time_training = stop_time - start_time
-        y_pred = pipe.predict(X)
-        accuracy = accuracy_score(y, y_pred)
-        precision = precision_score(y, y_pred, average='weighted')
-        recall = recall_score(y, y_pred, average='weighted')
-        f1 = f1_score(y, y_pred, average='weighted')
+        time_training = time.time() - start_time
 
-        formatted_result = save_params_model(
+        scoring = {
+            'accuracy': 'accuracy',
+            'precision': 'precision_weighted',
+            'recall': 'recall_weighted',
+            'f1': 'f1_weighted'
+        }
+
+        cv_results = cross_validate(pipe, X, y, cv=5, scoring=scoring, n_jobs=-1)
+
+        return save_params_model(
             model=model_name,
             scaler=scaler_name,
             training_time=time_training,
-            accuracy_score_val=accuracy,
-            precision_score_val=precision,
-            recall_score_val=recall,
-            f1_score_val=f1,
+            accuracy_score_val=cv_results['test_accuracy'].mean(),
+            precision_score_val=cv_results['test_precision'].mean(),
+            recall_score_val=cv_results['test_recall'].mean(),
+            f1_score_val=cv_results['test_f1'].mean()
         )
-
-        return formatted_result
 
     def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name):
         data_processed = self.preprocessing_data(data, preprocessing_file)
@@ -175,7 +179,7 @@ class Pipeline:
 
         return X_balanced, y_balanced, pipelines_to_test
 
-    def run_pipline(self, data, preprocessing_file, model_file, model_name):
+    def run_pipline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
 
         X_balanced, y_balanced, pipelines_to_test = self._prepare_data_and_pipelines(
             data, preprocessing_file, model_name
@@ -185,7 +189,7 @@ class Pipeline:
         all_results_list = []
 
         for scaler_name, pipe_with_scaler in pipelines_to_test.items():
-            print(f"Trening i tuning z {scaler_name} scalerem...")
+            print(f"Training and tuning with {scaler_name} scaler...")
 
             best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
 
@@ -204,7 +208,7 @@ class Pipeline:
 
         return all_results_list
 
-    def run_simple_pipeline(self, data, preprocessing_file, model_name):
+    def run_pipeline(self, data, preprocessing_file, model_name):
 
         X_balanced, y_balanced, pipelines_to_test = self._prepare_data_and_pipelines(
             data, preprocessing_file, model_name
@@ -213,7 +217,7 @@ class Pipeline:
         all_results_list = []
 
         for scaler_name, pipe_with_scaler in pipelines_to_test.items():
-            print(f"Trening prostego modelu z {scaler_name} scalerem...")
+            print(f"Training and tuning with {scaler_name} scaler...")
 
             result = self.train_model(
                 X_balanced,
@@ -235,37 +239,21 @@ class Pipeline:
 
         for model_name in all_model_names:
             print(f"\n{'=' * 50}")
-            print(f"ROZPOCZĘCIE PRZETWARZANIA MODELU: {model_name}")
+            print(f"START PROCESSING MODEL: {model_name}")
             print(f"{'=' * 50}")
 
             if use_grid_search:
-                results_for_model = self.run_pipline(data, preprocessing_file, model_file, model_name)
+                results_for_model = self.run_pipline_with_grid_search_cv(data, preprocessing_file, model_file,
+                                                                         model_name)
             else:
 
-                results_for_model = self.run_simple_pipeline(data, preprocessing_file, model_name)
+                results_for_model = self.run_pipeline(data, preprocessing_file, model_name)
 
             all_results.extend(results_for_model)
 
         return all_results
+    # TODO testowanie roznych parametrow, poprawa ich
 
-    def to_dataframe(self, results_list):
-        df = pd.DataFrame(results_list)
+    # TODO ustawienie poprawnych sciezek
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        os.makedirs("results", exist_ok=True)
-        file_path = os.path.join("results", f"results_{timestamp}.csv")
-
-        df.to_csv(file_path, index=False)
-        print(f"Wyniki zapisane do: {file_path}")
-        return df
-
-if __name__ == "__main__":
-    root = Path.cwd().parent
-    model_file = load_config("config/models.yaml")
-    preprocessing_file = load_config("config/preprocessing.yaml")
-    data = load_data("/Users/trzopa/Benchmark-modeli-klasyfikacyjnych-na-danych-syntetycznych/data/train.csv")
-    p = Pipeline()
-    pdata = p.preprocessing_data(data, preprocessing_file)
-    all_models = p.run_all_models(data, preprocessing_file, model_file, False)
-    all_models
-    results_df = p.to_dataframe(all_models)
+    # TODO dodaj walidacje krzyzowa
