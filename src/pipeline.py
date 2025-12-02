@@ -202,6 +202,7 @@ class Pipeline:
                     precision_score_val=None,
                     recall_score_val=None,
                     f1_score_val=None,
+                    roc_auc_score=None,
                     best_params=pipe_with_scaler.get_params()
                 )
             else:
@@ -214,7 +215,8 @@ class Pipeline:
                     precision_score_val=best_results['mean_test_precision'],
                     recall_score_val=best_results['mean_test_recall'],
                     f1_score_val=best_results['mean_test_f1_score'],
-                    best_params=best_results['best_params']
+                    roc_auc_score=best_results['mean_test_roc_auc'],
+                    best_params=best_results['best_params'],
                 )
 
             all_results_list.append(formatted_result)
