@@ -22,7 +22,7 @@ def save_params_model(model, scaler, training_time, accuracy_score_val, precisio
     result = {
         "model": model,
         "scaler": scaler,
-        "time_trening": training_time,
+        "time_training": training_time,
         "accuracy_score": accuracy_score_val,
         "precision_score": precision_score_val,
         "recall_score": recall_score_val,
@@ -34,14 +34,14 @@ def save_params_model(model, scaler, training_time, accuracy_score_val, precisio
     return result
 
 
-def to_dataframe(results_list):
+def to_dataframe(results_list, name_folder):
     df = pd.DataFrame(results_list)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     root = Path.cwd().parent
-    results_dir = root / "results"
-    results_dir.mkdir(exist_ok=True)
+    results_dir = root / "results" / name_folder
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = results_dir / f"results_{timestamp}.csv"
     df.to_csv(file_path, index=False)

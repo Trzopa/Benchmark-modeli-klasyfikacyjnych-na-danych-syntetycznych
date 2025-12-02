@@ -10,4 +10,4 @@ p = Pipeline()
 pdata = p.preprocessing_data(data, preprocessing_file)
 
 all_models = p.run_all_models(data, preprocessing_file, model_file, True)
-to_dataframe(all_models)
+to_dataframe(all_models, "predictions")
