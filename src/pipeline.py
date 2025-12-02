@@ -54,8 +54,6 @@ class Pipeline:
             "LogisticRegression": LogisticRegression,
             "KNeighborsClassifier": KNeighborsClassifier,
             "SVC": SVC,
-            # TODO warunek naitve bayyesa
-
             "NaiveBayes": GaussianNB,
             "DecisionTreeClassifier": DecisionTreeClassifier,
             "RandomForestClassifier": RandomForestClassifier,
@@ -171,38 +169,49 @@ class Pipeline:
         X_balanced, y_balanced = self.apply_balancing(X_processed, y)
 
         model_cls = self.get_model_class(model_name)
-        pipelines_to_test = {
+        pipelines_to_train = {
             "StandardScaler": self.create_pipeline_with_scaler(model_cls, scaler=StandardScaler()),
             "MinMaxScaler": self.create_pipeline_with_scaler(model_cls, scaler=MinMaxScaler()),
             "None": self.create_pipeline_with_scaler(model_cls, scaler=None),
         }
 
-        return X_balanced, y_balanced, pipelines_to_test
+        return X_balanced, y_balanced, pipelines_to_train
 
-    def run_pipline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
-
-        X_balanced, y_balanced, pipelines_to_test = self._prepare_data_and_pipelines(
+    def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
+        X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
             data, preprocessing_file, model_name
         )
-
         param_dist = self.get_param_distribution(model_file, model_name)
         all_results_list = []
-
-        for scaler_name, pipe_with_scaler in pipelines_to_test.items():
+        for scaler_name, pipe_with_scaler in pipelines_to_train.items():
             print(f"Training and tuning with {scaler_name} scaler...")
 
-            best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
+            if not param_dist:
+                pipe_with_scaler.fit(X_balanced, y_balanced)
+                score = pipe_with_scaler.score(X_balanced, y_balanced)
 
-            formatted_result = save_params_model(
-                model=model_name,
-                scaler=scaler_name,
-                training_time=best_results['duration'],
-                accuracy_score_val=best_results['mean_test_accuracy'],
-                precision_score_val=best_results['mean_test_precision'],
-                recall_score_val=best_results['mean_test_recall'],
-                f1_score_val=best_results['mean_test_f1_score'],
-                best_params=best_results['best_params']
-            )
+                formatted_result = save_params_model(
+                    model=model_name,
+                    scaler=scaler_name,
+                    training_time=None,
+                    accuracy_score_val=score,
+                    precision_score_val=None,
+                    recall_score_val=None,
+                    f1_score_val=None,
+                    best_params=pipe_with_scaler.get_params()
+                )
+            else:
+                best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
+                formatted_result = save_params_model(
+                    model=model_name,
+                    scaler=scaler_name,
+                    training_time=best_results['duration'],
+                    accuracy_score_val=best_results['mean_test_accuracy'],
+                    precision_score_val=best_results['mean_test_precision'],
+                    recall_score_val=best_results['mean_test_recall'],
+                    f1_score_val=best_results['mean_test_f1_score'],
+                    best_params=best_results['best_params']
+                )
 
             all_results_list.append(formatted_result)
 
@@ -210,13 +219,13 @@ class Pipeline:
 
     def run_pipeline(self, data, preprocessing_file, model_name):
 
-        X_balanced, y_balanced, pipelines_to_test = self._prepare_data_and_pipelines(
+        X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
             data, preprocessing_file, model_name
         )
 
         all_results_list = []
 
-        for scaler_name, pipe_with_scaler in pipelines_to_test.items():
+        for scaler_name, pipe_with_scaler in pipelines_to_train.items():
             print(f"Training and tuning with {scaler_name} scaler...")
 
             result = self.train_model(
@@ -243,7 +252,7 @@ class Pipeline:
             print(f"{'=' * 50}")
 
             if use_grid_search:
-                results_for_model = self.run_pipline_with_grid_search_cv(data, preprocessing_file, model_file,
+                results_for_model = self.run_pipeline_with_grid_search_cv(data, preprocessing_file, model_file,
                                                                          model_name)
             else:
 
@@ -256,4 +265,4 @@ class Pipeline:
 
     # TODO ustawienie poprawnych sciezek
 
-    # TODO dodaj walidacje krzyzowa
+

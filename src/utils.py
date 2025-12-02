@@ -37,9 +37,13 @@ def to_dataframe(results_list):
     df = pd.DataFrame(results_list)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs("results", exist_ok=True)
-    file_path = os.path.join("results", f"results_{timestamp}.csv")
 
+    root = Path.cwd().parent
+    results_dir = root / "results"
+    results_dir.mkdir(exist_ok=True)
+
+    file_path = results_dir / f"results_{timestamp}.csv"
     df.to_csv(file_path, index=False)
     print(f"Wyniki zapisane do: {file_path}")
+
     return df
