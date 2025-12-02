@@ -10,7 +10,7 @@ from sklearn import set_config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer, roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV, cross_validate
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -109,6 +109,7 @@ class Pipeline:
             'precision': make_scorer(precision_score, average='weighted'),
             'recall': make_scorer(recall_score, average='weighted'),
             'f1_score': make_scorer(f1_score, average='weighted'),
+            'roc_auc': make_scorer(roc_auc_score, needs_proba=True)
         }
 
         start_time = time.time()
@@ -135,6 +136,7 @@ class Pipeline:
             'mean_test_precision': results['mean_test_precision'][best_index],
             'mean_test_recall': results['mean_test_recall'][best_index],
             'mean_test_f1_score': results['mean_test_f1_score'][best_index],
+            'mean_test_roc_auc': results['mean_test_roc_auc'][best_index],
         }
 
     def train_model(self, X, y, pipe, model_name, scaler_name):
@@ -146,7 +148,8 @@ class Pipeline:
             'accuracy': 'accuracy',
             'precision': 'precision_weighted',
             'recall': 'recall_weighted',
-            'f1': 'f1_weighted'
+            'f1': 'f1_weighted',
+            'roc_auc': make_scorer(roc_auc_score, needs_proba=True)
         }
 
         cv_results = cross_validate(pipe, X, y, cv=5, scoring=scoring, n_jobs=-1)
@@ -158,7 +161,8 @@ class Pipeline:
             accuracy_score_val=cv_results['test_accuracy'].mean(),
             precision_score_val=cv_results['test_precision'].mean(),
             recall_score_val=cv_results['test_recall'].mean(),
-            f1_score_val=cv_results['test_f1'].mean()
+            f1_score_val=cv_results['test_f1'].mean(),
+            roc_auc_score= cv_results['test_roc_auc'].mean(),
         )
 
     def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name):

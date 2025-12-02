@@ -1,8 +1,7 @@
-import os
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
-from pathlib import Path
 import yaml
 
 
@@ -19,7 +18,7 @@ def load_config(path):
 
 
 def save_params_model(model, scaler, training_time, accuracy_score_val, precision_score_val, recall_score_val,
-                      f1_score_val, best_params=None):
+                      f1_score_val, roc_auc_score, best_params=None):
     result = {
         "model": model,
         "scaler": scaler,
@@ -28,7 +27,9 @@ def save_params_model(model, scaler, training_time, accuracy_score_val, precisio
         "precision_score": precision_score_val,
         "recall_score": recall_score_val,
         "f1_score": f1_score_val,
-        "best_params": best_params
+        "roc_auc_score": roc_auc_score,
+        "best_params": best_params,
+
     }
     return result
 
