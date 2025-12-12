@@ -3,7 +3,8 @@ import time
 import warnings
 
 import uniform
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 from lightgbm import LGBMClassifier
 from scipy.stats import randint, uniform
 from sklearn import set_config
@@ -44,9 +45,16 @@ class Pipeline:
             data[knn_cols] = knn_inputer.fit_transform(data[knn_cols])
         return data
 
-    def apply_balancing(self, X, y):
-        balanced = SMOTE(random_state=self.random_state)
-        X_balanced, y_balanced = balanced.fit_resample(X, y)
+    def get_balancing_methods(self):
+        return {
+            "SMOTE": SMOTE(random_state=self.random_state),
+            "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
+            "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
+
+        }
+
+    def apply_balancing(self, X, y, sampler):
+        X_balanced, y_balanced = sampler.fit_resample(X, y)
         return X_balanced, y_balanced
 
     def get_model_class(self, model_name=None):
@@ -139,7 +147,7 @@ class Pipeline:
             'mean_test_roc_auc': results['mean_test_roc_auc'][best_index],
         }
 
-    def train_model(self, X, y, pipe, model_name, scaler_name):
+    def train_model(self, X, y, pipe, model_name, scaler_name, balancing_name):
         start_time = time.time()
         pipe.fit(X, y)
         time_training = time.time() - start_time
@@ -157,6 +165,7 @@ class Pipeline:
         return save_params_model(
             model=model_name,
             scaler=scaler_name,
+            balancing_name=balancing_name,
             training_time=time_training,
             accuracy_score_val=cv_results['test_accuracy'].mean(),
             precision_score_val=cv_results['test_precision'].mean(),
@@ -165,12 +174,12 @@ class Pipeline:
             roc_auc_score= cv_results['test_roc_auc'].mean(),
         )
 
-    def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name):
+    def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name, sampler):
         data_processed = self.preprocessing_data(data, preprocessing_file)
         X_processed = data_processed.drop(columns=["target"])
         y = data_processed["target"]
 
-        X_balanced, y_balanced = self.apply_balancing(X_processed, y)
+        X_balanced, y_balanced = sampler.fit_resample(X_processed, y)
 
         model_cls = self.get_model_class(model_name)
         pipelines_to_train = {
@@ -182,67 +191,78 @@ class Pipeline:
         return X_balanced, y_balanced, pipelines_to_train
 
     def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
-        X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
-            data, preprocessing_file, model_name
-        )
         param_dist = self.get_param_distribution(model_file, model_name)
         all_results_list = []
-        for scaler_name, pipe_with_scaler in pipelines_to_train.items():
-            print(f"Training and tuning with {scaler_name} scaler...")
 
-            if not param_dist:
-                pipe_with_scaler.fit(X_balanced, y_balanced)
-                score = pipe_with_scaler.score(X_balanced, y_balanced)
+        for balancing_name, sampler in self.get_balancing_methods().items():
+            print(f"\nBalancing: {balancing_name}")
 
-                formatted_result = save_params_model(
-                    model=model_name,
-                    scaler=scaler_name,
-                    training_time=None,
-                    accuracy_score_val=score,
-                    precision_score_val=None,
-                    recall_score_val=None,
-                    f1_score_val=None,
-                    roc_auc_score=None,
-                    best_params=pipe_with_scaler.get_params()
-                )
-            else:
-                best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
-                formatted_result = save_params_model(
-                    model=model_name,
-                    scaler=scaler_name,
-                    training_time=best_results['duration'],
-                    accuracy_score_val=best_results['mean_test_accuracy'],
-                    precision_score_val=best_results['mean_test_precision'],
-                    recall_score_val=best_results['mean_test_recall'],
-                    f1_score_val=best_results['mean_test_f1_score'],
-                    roc_auc_score=best_results['mean_test_roc_auc'],
-                    best_params=best_results['best_params'],
-                )
+            X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
+                data, preprocessing_file, model_name, sampler
+            )
 
-            all_results_list.append(formatted_result)
+            for scaler_name, pipe_with_scaler in pipelines_to_train.items():
+                print(f"Training and tuning with {scaler_name} scaler...")
+
+                if not param_dist:
+                    pipe_with_scaler.fit(X_balanced, y_balanced)
+                    score = pipe_with_scaler.score(X_balanced, y_balanced)
+
+                    formatted_result = save_params_model(
+                        model=model_name,
+                        scaler=scaler_name,
+                        balancing_name=balancing_name,
+                        training_time=None,
+                        accuracy_score_val=score,
+                        precision_score_val=None,
+                        recall_score_val=None,
+                        f1_score_val=None,
+                        roc_auc_score=None,
+                        best_params=pipe_with_scaler.get_params()
+                    )
+                else:
+                    best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
+                    formatted_result = save_params_model(
+                        model=model_name,
+                        scaler=scaler_name,
+                        balancing_name=balancing_name,
+                        training_time=best_results['duration'],
+                        accuracy_score_val=best_results['mean_test_accuracy'],
+                        precision_score_val=best_results['mean_test_precision'],
+                        recall_score_val=best_results['mean_test_recall'],
+                        f1_score_val=best_results['mean_test_f1_score'],
+                        roc_auc_score=best_results['mean_test_roc_auc'],
+                        best_params=best_results['best_params'],
+                    )
+
+                all_results_list.append(formatted_result)
 
         return all_results_list
 
     def run_pipeline(self, data, preprocessing_file, model_name):
-
-        X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
-            data, preprocessing_file, model_name
-        )
-
         all_results_list = []
 
-        for scaler_name, pipe_with_scaler in pipelines_to_train.items():
-            print(f"Training and tuning with {scaler_name} scaler...")
+        for balancing_name, sampler in self.get_balancing_methods().items():
+            print(f"\nBalancing: {balancing_name}")
 
-            result = self.train_model(
-                X_balanced,
-                y_balanced,
-                pipe_with_scaler,
-                model_name,
-                scaler_name
+            X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
+                data, preprocessing_file, model_name, sampler
             )
 
-            all_results_list.append(result)
+            for scaler_name, pipe_with_scaler in pipelines_to_train.items():
+                print(f"Training with {scaler_name} scaler...")
+
+                result = self.train_model(
+                    X_balanced,
+                    y_balanced,
+                    pipe_with_scaler,
+                    model_name,
+                    scaler_name,
+                    sampler
+                )
+                # dopisz balancing_name do wyniku jeśli trzeba
+                result["balancing_name"] = balancing_name
+                all_results_list.append(result)
 
         return all_results_list
 
@@ -270,5 +290,3 @@ class Pipeline:
     # TODO testowanie roznych parametrow, poprawa ich
 
     # TODO ustawienie poprawnych sciezek
-
-

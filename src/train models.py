@@ -1,4 +1,3 @@
-import warnings
 from pathlib import Path
 from utils import load_config, load_data, to_dataframe
 from pipeline import Pipeline
