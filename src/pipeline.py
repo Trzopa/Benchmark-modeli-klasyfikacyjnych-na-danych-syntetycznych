@@ -54,7 +54,8 @@ class Pipeline:
 
         }
 
-    def apply_balancing(self, X, y, sampler):
+    @staticmethod
+    def apply_balancing(X, y, sampler):
         X_balanced, y_balanced = sampler.fit_resample(X, y)
         return X_balanced, y_balanced
 
@@ -182,8 +183,7 @@ class Pipeline:
         X_processed = data_processed.drop(columns=["target"])
         y = data_processed["target"]
 
-        X_balanced, y_balanced = sampler.fit_resample(X_processed, y)
-
+        X_balanced, y_balanced = self.apply_balancing(X_processed, y, sampler)
         model_cls = self.get_model_class(model_name)
         pipelines_to_train = {
             "StandardScaler": self.create_pipeline_with_scaler(model_cls, scaler=StandardScaler()),
@@ -198,14 +198,13 @@ class Pipeline:
         all_results_list = []
 
         for balancing_name, sampler in self.get_balancing_methods().items():
-            print(f"\nBalancing: {balancing_name}")
 
             X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
                 data, preprocessing_file, model_name, sampler
             )
 
             for scaler_name, pipe_with_scaler in pipelines_to_train.items():
-                print(f"Training and tuning with {scaler_name} scaler...")
+                print(f"Training and tuning with {scaler_name} scaler and balancing {balancing_name}...")
 
                 if not param_dist:
                     pipe_with_scaler.fit(X_balanced, y_balanced)
@@ -246,14 +245,13 @@ class Pipeline:
         all_results_list = []
 
         for balancing_name, sampler in self.get_balancing_methods().items():
-            print(f"\nBalancing: {balancing_name}")
 
             X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
                 data, preprocessing_file, model_name, sampler
             )
 
             for scaler_name, pipe_with_scaler in pipelines_to_train.items():
-                print(f"Training with {scaler_name} scaler...")
+                print(f"Training and tuning with {scaler_name} scaler and balancing {balancing_name}...")
 
                 result = self.train_model(
                     X_balanced,
@@ -290,4 +288,3 @@ class Pipeline:
         return all_results
     # TODO testowanie roznych parametrow, poprawa ich
 
-    # TODO ustawienie poprawnych sciezek
