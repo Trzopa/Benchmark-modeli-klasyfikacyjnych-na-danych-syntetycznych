@@ -11,7 +11,7 @@ from sklearn import set_config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer, roc_auc_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn.model_selection import RandomizedSearchCV, cross_validate
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
+
 from utils import save_params_model
 
 set_config(transform_output="pandas")
@@ -103,9 +104,11 @@ class Pipeline:
             steps.append(("scaler", scaler))
 
         model_kwargs = {}
-
         if 'random_state' in inspect.signature(model_cls.__init__).parameters:
             model_kwargs['random_state'] = self.random_state
+
+        if model_cls is SVC:
+            model_kwargs['probability'] = True
 
         steps.append(("clf", model_cls(**model_kwargs)))
 
@@ -117,7 +120,7 @@ class Pipeline:
             'precision': make_scorer(precision_score, average='weighted'),
             'recall': make_scorer(recall_score, average='weighted'),
             'f1_score': make_scorer(f1_score, average='weighted'),
-            'roc_auc': make_scorer(roc_auc_score, needs_proba=True)
+            'roc_auc': 'roc_auc',
         }
 
         start_time = time.time()
@@ -157,7 +160,7 @@ class Pipeline:
             'precision': 'precision_weighted',
             'recall': 'recall_weighted',
             'f1': 'f1_weighted',
-            'roc_auc': make_scorer(roc_auc_score, needs_proba=True)
+            'roc_auc': 'roc_auc',
         }
 
         cv_results = cross_validate(pipe, X, y, cv=5, scoring=scoring, n_jobs=-1)
@@ -171,7 +174,7 @@ class Pipeline:
             precision_score_val=cv_results['test_precision'].mean(),
             recall_score_val=cv_results['test_recall'].mean(),
             f1_score_val=cv_results['test_f1'].mean(),
-            roc_auc_score= cv_results['test_roc_auc'].mean(),
+            roc_auc_score=cv_results['test_roc_auc'].mean(),
         )
 
     def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name, sampler):
@@ -258,10 +261,8 @@ class Pipeline:
                     pipe_with_scaler,
                     model_name,
                     scaler_name,
-                    sampler
+                    balancing_name
                 )
-                # dopisz balancing_name do wyniku jeśli trzeba
-                result["balancing_name"] = balancing_name
                 all_results_list.append(result)
 
         return all_results_list
@@ -279,7 +280,7 @@ class Pipeline:
 
             if use_grid_search:
                 results_for_model = self.run_pipeline_with_grid_search_cv(data, preprocessing_file, model_file,
-                                                                         model_name)
+                                                                          model_name)
             else:
 
                 results_for_model = self.run_pipeline(data, preprocessing_file, model_name)
