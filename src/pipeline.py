@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
-from sklearn.model_selection import RandomizedSearchCV, cross_validate
+from sklearn.model_selection import RandomizedSearchCV, cross_validate, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -129,7 +129,7 @@ class Pipeline:
             pipe,
             param_distributions=param_dist,
             n_iter=5,
-            cv=5,
+            cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=self.random_state),
             scoring=scorers,
             refit='f1_score',
             random_state=self.random_state,
@@ -164,7 +164,14 @@ class Pipeline:
             'roc_auc': 'roc_auc',
         }
 
-        cv_results = cross_validate(pipe, X, y, cv=5, scoring=scoring, n_jobs=-1)
+        cv_results = cross_validate(
+            pipe,
+            X,
+            y,
+            cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=self.random_state),
+            scoring=scoring,
+            n_jobs=-1
+        )
 
         return save_params_model(
             model=model_name,
@@ -287,4 +294,3 @@ class Pipeline:
 
         return all_results
     # TODO testowanie roznych parametrow, poprawa ich
-
