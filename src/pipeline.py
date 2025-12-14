@@ -21,7 +21,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model
+from utils import save_params_model, save_params_model_with_best_params
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -217,7 +217,7 @@ class Pipeline:
                     pipe_with_scaler.fit(X_balanced, y_balanced)
                     score = pipe_with_scaler.score(X_balanced, y_balanced)
 
-                    formatted_result = save_params_model(
+                    formatted_result = save_params_model_with_best_params(
                         model=model_name,
                         scaler=scaler_name,
                         balancing_name=balancing_name,
@@ -231,7 +231,7 @@ class Pipeline:
                     )
                 else:
                     best_results = self.grid_search_cv(X_balanced, y_balanced, pipe_with_scaler, param_dist)
-                    formatted_result = save_params_model(
+                    formatted_result = save_params_model_with_best_params(
                         model=model_name,
                         scaler=scaler_name,
                         balancing_name=balancing_name,

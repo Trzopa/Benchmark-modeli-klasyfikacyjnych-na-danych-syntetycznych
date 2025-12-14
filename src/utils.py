@@ -17,7 +17,7 @@ def load_config(path):
     return file
 
 
-def save_params_model(model, scaler, balancing_name, training_time, accuracy_score_val, precision_score_val,
+def save_params_model_with_best_params(model, scaler, balancing_name, training_time, accuracy_score_val, precision_score_val,
                       recall_score_val,
                       f1_score_val, roc_auc_score, best_params=None):
     result = {
@@ -31,6 +31,24 @@ def save_params_model(model, scaler, balancing_name, training_time, accuracy_sco
         "f1_score": f1_score_val,
         "roc_auc_score": roc_auc_score,
         "best_params": best_params,
+
+    }
+    return result
+
+
+def save_params_model(model, scaler, balancing_name, training_time, accuracy_score_val, precision_score_val,
+                      recall_score_val,
+                      f1_score_val, roc_auc_score):
+    result = {
+        "model": model,
+        "scaler": scaler,
+        "balancing name": balancing_name,
+        "time_training": training_time,
+        "accuracy_score": accuracy_score_val,
+        "precision_score": precision_score_val,
+        "recall_score": recall_score_val,
+        "f1_score": f1_score_val,
+        "roc_auc_score": roc_auc_score,
 
     }
     return result
