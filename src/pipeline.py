@@ -61,14 +61,6 @@ class Pipeline:
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
 
-    def get_balancing_methods(self):
-        return {
-            "SMOTE": SMOTE(random_state=self.random_state),
-            "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
-            "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
-
-        }
-
     def create_pipeline(self, model_cls, preprocessing_file):
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
@@ -81,27 +73,8 @@ class Pipeline:
 
 
 
-    def apply_balancing(X, y, sampler):
-        X_balanced, y_balanced = sampler.fit_resample(X, y)
-        return X_balanced, y_balanced
 
 
-    def get_model_class(self, model_name=None):
-        models = {
-            "LogisticRegression": LogisticRegression,
-            "KNeighborsClassifier": KNeighborsClassifier,
-            "SVC": SVC,
-            "NaiveBayes": GaussianNB,
-            "DecisionTreeClassifier": DecisionTreeClassifier,
-            "RandomForestClassifier": RandomForestClassifier,
-            "XGBClassifier": XGBClassifier,
-            "LGBMClassifier": LGBMClassifier,
-        }
-
-        if model_name is None:
-            return models
-
-        return models.get(model_name, None)
 
 
 def get_param_distribution(self, config_name, model_name):
