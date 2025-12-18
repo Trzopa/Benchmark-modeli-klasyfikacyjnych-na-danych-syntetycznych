@@ -1,8 +1,0 @@
-LogisticRegression: LogisticRegression,
-KNeighborsClassifier: KNeighborsClassifier,
-SVC": SVC,
-NaiveBayes: GaussianNB,
-DecisionTreeClassifier: DecisionTreeClassifier,
-RandomForestClassifier: RandomForestClassifier,
-XGBClassifier: XGBClassifier,
-LGBMClassifier: LGBMClassifier,

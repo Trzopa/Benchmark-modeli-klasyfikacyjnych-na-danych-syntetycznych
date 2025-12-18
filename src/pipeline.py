@@ -60,16 +60,18 @@ class Pipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
-    def create_pipeline(self, model_name, preprocessing_file):
+    def create_pipeline(self, model_file, preprocessing_file):
+        model = model_file.keys()
+
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
             ('over', RandomOverSampler(random_state=self.random_state)),
             ('smote', SMOTE(random_state=self.random_state)),
             ('under', RandomUnderSampler(random_state=self.random_state)),
-            ('model', model_name)
+            ('model', model)
         ])
-        return pipe
 
+        return pipe
 
     def get_param_distribution(self, config_name, model_name):
         model_config = config_name[model_name]
@@ -93,7 +95,6 @@ class Pipeline:
                     )
 
         return param_distributions
-
 
     def grid_search_cv(self, X, y, pipe, param_dist):
         scorers = {
@@ -131,7 +132,6 @@ class Pipeline:
             'mean_test_roc_auc': results['mean_test_roc_auc'][best_index],
         }
 
-
     def train_model(self, X, y, pipe, model_name, scaler_name, balancing_name):
         start_time = time.time()
         pipe.fit(X, y)
@@ -166,7 +166,6 @@ class Pipeline:
             roc_auc_score=cv_results['test_roc_auc'].mean(),
         )
 
-
     def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name, sampler):
         data_processed = self.preprocessing_data(data, preprocessing_file)
         X_processed = data_processed.drop(columns=["target"])
@@ -181,7 +180,6 @@ class Pipeline:
         }
 
         return X_balanced, y_balanced, pipelines_to_train
-
 
     def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
         param_dist = self.get_param_distribution(model_file, model_name)
@@ -231,13 +229,10 @@ class Pipeline:
 
         return all_results_list
 
-
     def run_pipeline(self, data, preprocessing_file, model_name):
         all_results_list = []
 
         for balancing_name, sampler in self.create_pipeline(model_name, preprocessing_file).items():
-
-
 
             X_balanced, y_balanced, pipelines_to_train = self._prepare_data_and_pipelines(
                 data, preprocessing_file, model_name, sampler
@@ -257,7 +252,6 @@ class Pipeline:
                 all_results_list.append(result)
 
         return all_results_list
-
 
     def run_all_models(self, data, preprocessing_file, model_file, use_grid_search=True):
         all_model_names = self.get_model_class().keys()
@@ -281,4 +275,3 @@ class Pipeline:
         return all_results
 
 # TODO testowanie roznych parametrow, poprawa ich
-
