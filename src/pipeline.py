@@ -60,7 +60,6 @@ class Pipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
-
     def create_pipeline(self, model__name, preprocessing_file):
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
@@ -70,11 +69,6 @@ class Pipeline:
             ('model', model__name)
         ])
         return pipe
-
-
-
-
-
 
 
 def get_param_distribution(self, config_name, model_name):
@@ -99,9 +93,6 @@ def get_param_distribution(self, config_name, model_name):
                 )
 
     return param_distributions
-
-
-
 
 
 def grid_search_cv(self, X, y, pipe, param_dist):
@@ -286,7 +277,6 @@ def run_all_models(self, data, preprocessing_file, model_file, use_grid_search=T
         all_results.extend(results_for_model)
 
     return all_results
-
 
 # TODO testowanie roznych parametrow, poprawa ich
 
