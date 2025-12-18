@@ -61,13 +61,13 @@ class Pipeline:
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
 
-    def create_pipeline(self, model_cls, preprocessing_file):
+    def create_pipeline(self, model__name, preprocessing_file):
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
             ('over', RandomOverSampler(random_state=self.random_state)),
             ('smote', SMOTE(random_state=self.random_state)),
             ('under', RandomUnderSampler(random_state=self.random_state)),
-            ('model', model_cls)
+            ('model', model__name)
         ])
         return pipe
 
@@ -291,4 +291,4 @@ def run_all_models(self, data, preprocessing_file, model_file, use_grid_search=T
 # TODO testowanie roznych parametrow, poprawa ich
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
