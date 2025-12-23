@@ -149,9 +149,6 @@ class Pipeline:
         y = data["target"]
         results = []
 
-        if model_names is None:
-            model_names = list(model_file.keys())
-
         scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
         samplers = [
             ('none', 'passthrough'),
