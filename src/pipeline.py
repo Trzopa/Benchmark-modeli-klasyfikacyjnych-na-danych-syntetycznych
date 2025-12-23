@@ -144,7 +144,7 @@ class Pipeline:
         )
         return result
 
-    def run_all_combinations(self, data, preprocessing_file, model_file, model_names=None):
+    def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_names=None):
         X = data.drop(columns="target")
         y = data["target"]
         results = []
