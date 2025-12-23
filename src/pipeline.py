@@ -76,14 +76,14 @@ class Pipeline:
             return models
         return models.get(model_name)
 
-    def create_pipeline(self, model_file, preprocessing_file, scaler='passthrough', sampler='passthrough'):
-        model = self.get_model_class(model_file)
-
+    def create_pipeline(self, model_name, preprocessing_file, scaler='passthrough', sampler='passthrough'):
+        model_cls = self.get_model_class(model_name)
+        model = model_cls()
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
             ('scaler', scaler),
             ('sampler', sampler),
-            ('clf', model())
+            ('clf', model)
         ])
 
         return pipe
@@ -111,57 +111,82 @@ class Pipeline:
 
         return param_distributions
 
-    def _train_one_combination(self, X, y, model_name, preprocessing_file, scaler, sampler, param_dist, sampler_name):
-        pipe = self.create_pipeline(model_name, preprocessing_file, scaler=scaler, sampler=sampler)
-        search = RandomizedSearchCV(
-            estimator=pipe,
-            param_distributions=param_dist,
-            n_iter=5,
-            cv=3,
-            scoring='f1',
-            n_jobs=-1,
-            random_state=self.random_state,
-            verbose=1
-        )
-        start_time = time.time()
-        search.fit(X, y)
-        training_time = time.time() - start_time
-
-        y_pred = search.best_estimator_.predict(X)
-
-        y_proba = search.best_estimator_.predict_proba(X)[:, 1]
-
-        result = save_params_model(
-            model=model_name,
-            scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
-            balancing_name=sampler_name,
-            training_time=training_time,
-            accuracy_score_val=accuracy_score(y, y_pred),
-            precision_score_val=precision_score(y, y_pred),
-            recall_score_val=recall_score(y, y_pred),
-            f1_score_val=f1_score(y, y_pred),
-            roc_auc_score_val=roc_auc_score(y, y_proba)
-        )
-        return result
-
-    def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_names=None):
+    def run_pipeline(self, data, model_name, preprocessing_file):
         X = data.drop(columns="target")
         y = data["target"]
-        results = []
-
-        scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
+        scalers = [StandardScaler(), MinMaxScaler(), 'None']
         samplers = [
-            ('none', 'passthrough'),
-            ('ROS', RandomOverSampler(random_state=self.random_state)),
+            ('None', 'passthrough'),
+            ('RandomOverSampler', RandomOverSampler(random_state=self.random_state)),
             ('SMOTE', SMOTE(random_state=self.random_state)),
-            ('RUS', RandomUnderSampler(random_state=self.random_state))
+            ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
         ]
+        results = []
+        for scaler in scalers:
+            for sampler_name, sampler in samplers:
+                print(
+                    f"Trenuję model {model_name} z scalerem {type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'} i samplerem {sampler_name}")
+                pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
+                start_time = time.time()
+                pipe.fit(X, y)
+                train_time = time.time() - start_time
+                y_pred = pipe.predict(X)
+                y_proba = y_pred
 
-        for model_name in model_names:
-            param_dist = self.get_param_distribution(model_file, model_name)
-            for scaler, (sampler_name, sampler_obj) in product(scalers, samplers):
-                result = self._train_one_combination(
-                    X, y, model_name, preprocessing_file, scaler, sampler_obj, param_dist, sampler_name
+                result = save_params_model(
+                    model=model_name,
+                    scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
+                    balancing_name=sampler_name,
+                    training_time=train_time,
+                    accuracy_score_val=accuracy_score(y, y_pred),
+                    precision_score_val=precision_score(y, y_pred),
+                    recall_score_val=recall_score(y, y_pred),
+                    f1_score_val=f1_score(y, y_pred),
+                    roc_auc_score_val=roc_auc_score(y, y_proba)
+                )
+                results.append(result)
+
+        return results
+
+    def run_pipeline_with_grid_search(self, data, model_name, param_config, preprocessing_file):
+        X = data.drop(columns="target")
+        y = data["target"]
+        scalers = [StandardScaler(), MinMaxScaler(), 'None']
+        samplers = [
+            ('None', 'passthrough'),
+            ('RandomOverSampler', RandomOverSampler(random_state=self.random_state)),
+            ('SMOTE', SMOTE(random_state=self.random_state)),
+            ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
+        ]
+        results = []
+        for scaler in scalers:
+            for sampler_name, sampler in samplers:
+                pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
+                param_distributions = self.get_param_distribution(param_config, model_name)
+                start_time = time.time()
+                search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
+                                            cv=3,
+                                            n_jobs=-1,
+                                            verbose=1,
+                                            scoring="f1")
+                search.fit(X, y)
+                train_time = time.time() - start_time
+                y_pred = search.best_estimator_.predict(X)
+                try:
+                    y_proba = search.best_estimator_.predict_proba(X)[:, 1]
+                except AttributeError:
+                    y_proba = y_pred
+                result = save_params_model_with_best_params(
+                    model=model_name,
+                    scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
+                    balancing_name=sampler_name,
+                    training_time=train_time,
+                    accuracy_score_val=accuracy_score(y, y_pred),
+                    precision_score_val=precision_score(y, y_pred),
+                    recall_score_val=recall_score(y, y_pred),
+                    f1_score_val=f1_score(y, y_pred),
+                    roc_auc_score_val=roc_auc_score(y, y_proba),
+                    best_params=search.best_params_
                 )
                 results.append(result)
 
