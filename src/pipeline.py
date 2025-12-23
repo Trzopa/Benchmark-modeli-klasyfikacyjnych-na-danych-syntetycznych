@@ -60,15 +60,32 @@ class Pipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
+    def get_model_class(self, model_name=None):
+        models = {
+            "LogisticRegression": LogisticRegression,
+            "KNeighborsClassifier": KNeighborsClassifier,
+            "SVC": SVC,
+            "NaiveBayes": GaussianNB,
+            "DecisionTreeClassifier": DecisionTreeClassifier,
+            "RandomForestClassifier": RandomForestClassifier,
+            "XGBClassifier": XGBClassifier,
+            "LGBMClassifier": LGBMClassifier,
+        }
+
+        if model_name is None:
+            return models
+
+        return models.get(model_name, None)
+
     def create_pipeline(self, model_file, preprocessing_file):
-        model = model_file.keys()
+        model = self.get_model_class(model_file)
 
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
             ('over', RandomOverSampler(random_state=self.random_state)),
             ('smote', SMOTE(random_state=self.random_state)),
             ('under', RandomUnderSampler(random_state=self.random_state)),
-            ('model', model)
+            ('clf', model)
         ])
 
         return pipe
@@ -165,21 +182,6 @@ class Pipeline:
             f1_score_val=cv_results['test_f1'].mean(),
             roc_auc_score=cv_results['test_roc_auc'].mean(),
         )
-
-    def _prepare_data_and_pipelines(self, data, preprocessing_file, model_name, sampler):
-        data_processed = self.preprocessing_data(data, preprocessing_file)
-        X_processed = data_processed.drop(columns=["target"])
-        y = data_processed["target"]
-
-        X_balanced, y_balanced = self.apply_balancing(X_processed, y, sampler)
-        model_cls = self.get_model_class(model_name)
-        pipelines_to_train = {
-            "StandardScaler": self.create_pipeline_with_scaler(model_cls, scaler=StandardScaler()),
-            "MinMaxScaler": self.create_pipeline_with_scaler(model_cls, scaler=MinMaxScaler()),
-            "None": self.create_pipeline_with_scaler(model_cls, scaler=None),
-        }
-
-        return X_balanced, y_balanced, pipelines_to_train
 
     def run_pipeline_with_grid_search_cv(self, data, preprocessing_file, model_file, model_name):
         param_dist = self.get_param_distribution(model_file, model_name)
