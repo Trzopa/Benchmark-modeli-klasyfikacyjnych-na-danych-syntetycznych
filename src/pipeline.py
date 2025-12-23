@@ -85,7 +85,7 @@ class Pipeline:
             ('over', RandomOverSampler(random_state=self.random_state)),
             ('smote', SMOTE(random_state=self.random_state)),
             ('under', RandomUnderSampler(random_state=self.random_state)),
-            ('clf', model)
+            ('clf', model())
         ])
 
         return pipe
@@ -232,6 +232,11 @@ class Pipeline:
         return all_results_list
 
     def run_pipeline(self, data, preprocessing_file, model_name):
+        scalers = [
+            StandardScaler(),
+            MinMaxScaler(),
+            'passthrough'
+        ]
         all_results_list = []
 
         for balancing_name, sampler in self.create_pipeline(model_name, preprocessing_file).items():
