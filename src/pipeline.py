@@ -111,8 +111,64 @@ class Pipeline:
 
         return param_distributions
 
+    def _train_one_combination(self, X, y, model_name, preprocessing_file, scaler, sampler, param_dist, sampler_name):
+        pipe = self.create_pipeline(model_name, preprocessing_file, scaler=scaler, sampler=sampler)
+        search = RandomizedSearchCV(
+            estimator=pipe,
+            param_distributions=param_dist,
+            n_iter=5,
+            cv=3,
+            scoring='f1',
+            n_jobs=-1,
+            random_state=self.random_state,
+            verbose=1
+        )
+        start_time = time.time()
+        search.fit(X, y)
+        training_time = time.time() - start_time
 
-    def _train_one_combination(self):
+        y_pred = search.best_estimator_.predict(X)
+
+        y_proba = search.best_estimator_.predict_proba(X)[:, 1]
+
+        result = save_params_model(
+            model=model_name,
+            scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
+            balancing_name=sampler_name,
+            training_time=training_time,
+            accuracy_score_val=accuracy_score(y, y_pred),
+            precision_score_val=precision_score(y, y_pred),
+            recall_score_val=recall_score(y, y_pred),
+            f1_score_val=f1_score(y, y_pred),
+            roc_auc_score_val=roc_auc_score(y, y_proba)
+        )
+        return result
+
+    def run_all_combinations(self, data, preprocessing_file, model_file, model_names=None):
+        X = data.drop(columns="target")
+        y = data["target"]
+        results = []
+
+        if model_names is None:
+            model_names = list(model_file.keys())
+
+        scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
+        samplers = [
+            ('none', 'passthrough'),
+            ('ROS', RandomOverSampler(random_state=self.random_state)),
+            ('SMOTE', SMOTE(random_state=self.random_state)),
+            ('RUS', RandomUnderSampler(random_state=self.random_state))
+        ]
+
+        for model_name in model_names:
+            param_dist = self.get_param_distribution(model_file, model_name)
+            for scaler, (sampler_name, sampler_obj) in product(scalers, samplers):
+                result = self._train_one_combination(
+                    X, y, model_name, preprocessing_file, scaler, sampler_obj, param_dist, sampler_name
+                )
+                results.append(result)
+
+        return results
 
 
 def run_all_models(self, data, preprocessing_file, model_file):
