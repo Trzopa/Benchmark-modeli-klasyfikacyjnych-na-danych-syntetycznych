@@ -111,16 +111,20 @@ class Pipeline:
 
         return param_distributions
 
-    def run_pipeline(self, data, model_name, preprocessing_file):
+    def _prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
-        scalers = [StandardScaler(), MinMaxScaler(), 'None']
+        scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
         samplers = [
             ('None', 'passthrough'),
             ('RandomOverSampler', RandomOverSampler(random_state=self.random_state)),
             ('SMOTE', SMOTE(random_state=self.random_state)),
             ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
         ]
+        return X, y, scalers, samplers
+
+    def run_pipeline(self, data, model_name, preprocessing_file):
+        X, y, scalers, samplers = self._prepare_data(data)
         results = []
         for scaler in scalers:
             for sampler_name, sampler in samplers:
@@ -149,15 +153,7 @@ class Pipeline:
         return results
 
     def run_pipeline_with_grid_search(self, data, model_name, param_config, preprocessing_file):
-        X = data.drop(columns="target")
-        y = data["target"]
-        scalers = [StandardScaler(), MinMaxScaler(), 'None']
-        samplers = [
-            ('None', 'passthrough'),
-            ('RandomOverSampler', RandomOverSampler(random_state=self.random_state)),
-            ('SMOTE', SMOTE(random_state=self.random_state)),
-            ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
-        ]
+        X, y, scalers, samplers = self._prepare_data(data)
         results = []
         for scaler in scalers:
             for sampler_name, sampler in samplers:
