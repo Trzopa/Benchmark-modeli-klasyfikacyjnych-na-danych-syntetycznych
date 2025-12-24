@@ -168,10 +168,9 @@ class Pipeline:
                 search.fit(X, y)
                 train_time = time.time() - start_time
                 y_pred = search.best_estimator_.predict(X)
-                try:
-                    y_proba = search.best_estimator_.predict_proba(X)[:, 1]
-                except AttributeError:
-                    y_proba = y_pred
+
+                y_proba = search.best_estimator_.predict_proba(X)[:, 1]
+
                 result = save_params_model_with_best_params(
                     model=model_name,
                     scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
