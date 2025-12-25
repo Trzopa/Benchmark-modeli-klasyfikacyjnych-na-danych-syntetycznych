@@ -129,7 +129,7 @@ class Pipeline:
 
 
 
-    def run_pipeline_with_grid_search(self, data, model_name, model_file, preprocessing_file):
+    def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)
         results = []
         for scaler in scalers:
@@ -137,8 +137,13 @@ class Pipeline:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
                 param_distributions = self.get_param_distribution(model_file, model_name)
                 start_time = time.time()
+                cv = StratifiedKFold(
+                    n_splits=3,
+                    shuffle=True,
+                    random_state=42
+                )
                 search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
-                                            cv=3,
+                                            cv=cv,
                                             n_jobs=-1,
                                             verbose=1,
                                             scoring="f1")
@@ -173,7 +178,7 @@ class Pipeline:
             print(f"START PROCESSING MODEL: {model_name}")
             print(f"{'=' * 50}")
 
-            results_for_model = self.run_pipeline_with_grid_search(data, model_name, model_file, preprocessing_file)
+            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
             all_results.extend(results_for_model)
 
         return all_results
