@@ -124,7 +124,7 @@ class Pipeline:
         ]
         return X, y, scalers, samplers
 
-    def run_pipeline(self, data, model_name, model_file, preprocessing_file, valid_data):
+    def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)
         results = []
         for scaler in scalers:
@@ -160,7 +160,7 @@ class Pipeline:
         return results
 
     def run_all_models(self, data, model_file, preprocessing_file):
-        all_model_names = self.get_model_class().keys()
+        all_model_names = self.get_model_names
 
         all_results = []
 
