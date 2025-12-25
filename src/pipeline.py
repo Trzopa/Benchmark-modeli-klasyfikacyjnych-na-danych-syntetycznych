@@ -60,8 +60,6 @@ class Pipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
-
-
     def get_model_class(self, model_name=None):
         models = {
             "LogisticRegression": lambda: LogisticRegression(),
@@ -113,8 +111,6 @@ class Pipeline:
 
         return param_distributions
 
-
-
     def _prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
@@ -127,8 +123,6 @@ class Pipeline:
         ]
         return X, y, scalers, samplers
 
-
-
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)
         results = []
@@ -137,11 +131,7 @@ class Pipeline:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
                 param_distributions = self.get_param_distribution(model_file, model_name)
                 start_time = time.time()
-                cv = StratifiedKFold(
-                    n_splits=3,
-                    shuffle=True,
-                    random_state=42
-                )
+                cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
                 search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
                                             cv=cv,
                                             n_jobs=-1,
