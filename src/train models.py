@@ -7,7 +7,6 @@ model_file = load_config("config/model.yaml")
 preprocessing_file = load_config("config/preprocessing.yaml")
 data = load_data(f"{root}/data/train.csv")
 p = Pipeline()
-pdata = p.preprocessing_data(data, preprocessing_file)
 
-all_models = p.run_all_models(data, preprocessing_file, model_file, False)
+all_models = p.run_all_models(data, model_file, preprocessing_file)
 to_dataframe(all_models, "metrics")

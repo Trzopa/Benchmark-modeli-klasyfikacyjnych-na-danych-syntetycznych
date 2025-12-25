@@ -127,34 +127,7 @@ class Pipeline:
         ]
         return X, y, scalers, samplers
 
-    def run_pipeline(self, data, model_name, preprocessing_file):
-        X, y, scalers, samplers = self._prepare_data(data)
-        results = []
-        for scaler in scalers:
-            for sampler_name, sampler in samplers:
-                print(
-                    f"Training model {model_name} with scaler {type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'} i sampler {sampler_name}")
-                pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
-                start_time = time.time()
-                pipe.fit(X, y)
-                train_time = time.time() - start_time
-                y_pred = pipe.predict(X)
-                y_proba = y_pred
 
-                result = save_params_model(
-                    model=model_name,
-                    scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
-                    balancing_name=sampler_name,
-                    training_time=train_time,
-                    accuracy_score_val=accuracy_score(y, y_pred),
-                    precision_score_val=precision_score(y, y_pred),
-                    recall_score_val=recall_score(y, y_pred),
-                    f1_score_val=f1_score(y, y_pred),
-                    roc_auc_score_val=roc_auc_score(y, y_proba)
-                )
-                results.append(result)
-
-        return results
 
     def run_pipeline_with_grid_search(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)

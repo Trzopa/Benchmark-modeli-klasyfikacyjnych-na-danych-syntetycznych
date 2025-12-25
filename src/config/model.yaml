@@ -134,17 +134,15 @@ NaiveBayes: { }
 
 SVC:
   clf__C:
-    distribution: uniform
-    loc: 0.1
-    scale: 10
+    low: 0.1
+    high: 10
   clf__kernel:
     - linear
     - rbf
-    - poly
-    - sigmoid
-  clf__gamma:
-    - scale
-    - auto
+  clf__tol:
+    - 0.01
+  clf__cache_size:
+    - 1000
 
 KNeighborsClassifier:
   clf__n_neighbors:
