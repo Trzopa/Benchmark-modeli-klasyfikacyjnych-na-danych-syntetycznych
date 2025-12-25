@@ -1,29 +1,27 @@
-import inspect
 import time
 import warnings
-from pathlib import Path
 
 import uniform
 from imblearn.over_sampling import SMOTE, RandomOverSampler
+from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
 from lightgbm import LGBMClassifier
-from scipy.stats import randint, uniform
+from scipy.stats import randint, uniform, loguniform
 from sklearn import set_config
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer, roc_auc_score
-from sklearn.model_selection import RandomizedSearchCV, cross_validate, StratifiedKFold
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
-from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model, save_params_model_with_best_params
+from utils import save_params_model_with_best_params
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -33,7 +31,7 @@ warnings.filterwarnings("ignore")
 class Pipeline:
     def __init__(self, random_state=42):
         self.random_state = random_state
-        self.DIST_MAP = {"randint": randint, "uniform": uniform}
+        self.DIST_MAP = {"randint": randint, "uniform": uniform, "loguniform": loguniform}
 
     def build_preprocessor(self, preprocessing_file, n_neighbors=5):
         knn_cols = []
