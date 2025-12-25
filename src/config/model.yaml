@@ -102,9 +102,9 @@ LGBMClassifier:
     low: 50
     high: 500
   clf__learning_rate:
-    distribution: uniform
-    loc: 0.01
-    scale: 0.5
+    distribution: loguniform
+    low: 0.01
+    high: 0.2
   clf__num_leaves:
     distribution: randint
     low: 31
@@ -129,6 +129,10 @@ LGBMClassifier:
     distribution: uniform
     loc: 0.5
     scale: 0.5
+  clf__min_child_samples:
+    distribution: randint
+    low: 5
+    high: 30
 
 NaiveBayes: { }
 
