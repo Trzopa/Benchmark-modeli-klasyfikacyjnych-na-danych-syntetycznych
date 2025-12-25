@@ -60,16 +60,18 @@ class Pipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
+
+
     def get_model_class(self, model_name=None):
         models = {
-            "LogisticRegression": LogisticRegression,
-            "KNeighborsClassifier": KNeighborsClassifier,
-            "SVC": SVC,
-            "NaiveBayes": GaussianNB,
-            "DecisionTreeClassifier": DecisionTreeClassifier,
-            "RandomForestClassifier": RandomForestClassifier,
-            "XGBClassifier": XGBClassifier,
-            "LGBMClassifier": LGBMClassifier,
+            "LogisticRegression": lambda: LogisticRegression(),
+            "KNeighborsClassifier": lambda: KNeighborsClassifier(),
+            "SVC": lambda: SVC(probability=True),
+            "NaiveBayes": lambda: GaussianNB(),
+            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(),
+            "RandomForestClassifier": lambda: RandomForestClassifier(),
+            "XGBClassifier": lambda: XGBClassifier(),
+            "LGBMClassifier": lambda: LGBMClassifier(),
         }
 
         if model_name is None:
@@ -110,6 +112,8 @@ class Pipeline:
                     )
 
         return param_distributions
+
+
 
     def _prepare_data(self, data):
         X = data.drop(columns="target")
@@ -186,7 +190,7 @@ class Pipeline:
 
         return results
 
-    def run_all_models(self,data,  model_file, preprocessing_file):
+    def run_all_models(self, data, model_file, preprocessing_file):
         all_model_names = self.get_model_class().keys()
 
         all_results = []
@@ -196,7 +200,7 @@ class Pipeline:
             print(f"START PROCESSING MODEL: {model_name}")
             print(f"{'=' * 50}")
 
-            results_for_model = self.run_pipeline_with_grid_search(data, model_name, model_file, preprocessing_file )
+            results_for_model = self.run_pipeline_with_grid_search(data, model_name, model_file, preprocessing_file)
             all_results.extend(results_for_model)
 
         return all_results
