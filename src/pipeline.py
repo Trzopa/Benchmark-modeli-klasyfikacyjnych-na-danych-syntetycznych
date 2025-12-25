@@ -129,7 +129,7 @@ class Pipeline:
         for scaler in scalers:
             for sampler_name, sampler in samplers:
                 print(
-                    f"Trenuję model {model_name} z scalerem {type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'} i samplerem {sampler_name}")
+                    f"Training model {model_name} with scaler {type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'} i sampler {sampler_name}")
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
                 start_time = time.time()
                 pipe.fit(X, y)
@@ -152,13 +152,13 @@ class Pipeline:
 
         return results
 
-    def run_pipeline_with_grid_search(self, data, model_name, param_config, preprocessing_file):
+    def run_pipeline_with_grid_search(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)
         results = []
         for scaler in scalers:
             for sampler_name, sampler in samplers:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
-                param_distributions = self.get_param_distribution(param_config, model_name)
+                param_distributions = self.get_param_distribution(model_file, model_name)
                 start_time = time.time()
                 search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
                                             cv=3,
@@ -186,21 +186,19 @@ class Pipeline:
 
         return results
 
+    def run_all_models(self,data,  model_file, preprocessing_file):
+        all_model_names = self.get_model_class().keys()
 
-def run_all_models(self, data, preprocessing_file, model_file):
-    all_model_names = self.get_model_class().keys()
+        all_results = []
 
-    all_results = []
+        for model_name in all_model_names:
+            print(f"\n{'=' * 50}")
+            print(f"START PROCESSING MODEL: {model_name}")
+            print(f"{'=' * 50}")
 
-    for model_name in all_model_names:
-        print(f"\n{'=' * 50}")
-        print(f"START PROCESSING MODEL: {model_name}")
-        print(f"{'=' * 50}")
+            results_for_model = self.run_pipeline_with_grid_search(data, model_name, model_file, preprocessing_file )
+            all_results.extend(results_for_model)
 
-        results_for_model = self.run_pipeline_with_grid_search_cv(data, preprocessing_file, model_file,
-                                                                  model_name)
-        all_results.extend(results_for_model)
-
-    return all_results
+        return all_results
 
 # TODO testowanie roznych parametrow, poprawa ich
