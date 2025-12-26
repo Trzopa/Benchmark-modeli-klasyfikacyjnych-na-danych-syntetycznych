@@ -129,7 +129,7 @@ class Pipeline:
         X, y = self._prepare_data(data)
         scalers, samplers = self._get_scalers_and_samplers()
         results = []
-        os.makedirs("results/models", exist_ok=True)
+        all_models = {}
 
         for scaler in scalers:
             for sampler_name, sampler in samplers:
@@ -147,11 +147,13 @@ class Pipeline:
 
                 best_estimator = search.best_estimator_
                 scaler_name = type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'
-                model_path = f"results/models/{model_name}_{sampler_name}_{scaler_name}.pkl"
-                model_path = save_model(best_estimator, model_path)
+                model_key = f"{model_name}_{sampler_name}_{scaler_name}"
+                all_models[model_key] = best_estimator
 
                 y_pred = best_estimator.predict(X)
                 y_proba = best_estimator.predict_proba(X)[:, 1]
+
+                model_path = f"all_models.pkl"
 
                 result = save_params_model_with_best_params(
                     model=model_name,
@@ -168,20 +170,21 @@ class Pipeline:
                 )
                 results.append(result)
 
-        return results
+        return results, all_models
 
-    def run_all_models(self, data, model_file, preprocessing_file):
-        all_model_names = self.get_model_class().keys()
-        all_results = []
 
-        for model_name in all_model_names:
-            print(f"\n{'=' * 50}")
-            print(f"START PROCESSING MODEL: {model_name}")
-            print(f"{'=' * 50}")
+def run_all_models(self, data, model_file, preprocessing_file):
+    all_model_names = self.get_model_class().keys()
+    all_results = []
 
-            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
-            all_results.extend(results_for_model)
+    for model_name in all_model_names:
+        print(f"\n{'=' * 50}")
+        print(f"START PROCESSING MODEL: {model_name}")
+        print(f"{'=' * 50}")
 
-        return all_results
+        results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
+        all_results.extend(results_for_model)
+
+    return all_results
 
 # TODO testowanie roznych parametrow, poprawa ich
