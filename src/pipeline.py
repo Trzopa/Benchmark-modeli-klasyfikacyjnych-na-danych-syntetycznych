@@ -131,7 +131,7 @@ class Pipeline:
         return scalers, samplers
 
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
-        X, y = self._train_data(data)
+        X, y = self._prepare_data(data)
         scalers, samplers = self._get_scalers_and_samplers()
         results = []
         for scaler in scalers:
