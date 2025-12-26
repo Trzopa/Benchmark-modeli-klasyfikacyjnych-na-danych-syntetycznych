@@ -112,7 +112,7 @@ class Pipeline:
 
         return param_distributions
 
-    def _prepare_data(self, data):
+    def _train_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
         return X, y
