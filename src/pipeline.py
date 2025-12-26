@@ -1,6 +1,8 @@
+import os
 import time
 import warnings
 
+import joblib
 import uniform
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -112,9 +114,6 @@ class Pipeline:
 
         return param_distributions
 
-    def prepare_valid_data(self, data):
-        return data
-
     def _prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
@@ -161,6 +160,64 @@ class Pipeline:
                     f1_score_val=f1_score(y, y_pred),
                     roc_auc_score_val=roc_auc_score(y, y_proba),
                     best_params=search.best_params_
+                )
+                results.append(result)
+
+        return results
+
+    def run_pipeline(self, data, model_name, model_file, preprocessing_file,
+                     save_models=True, models_dir="results/models"):
+
+        X, y = self._prepare_data(data)
+        scalers, samplers = self._get_scalers_and_samplers()
+        results = []
+
+        os.makedirs(models_dir, exist_ok=True)
+
+        for scaler in scalers:
+            for sampler_name, sampler in samplers:
+                pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
+                param_distributions = self.get_param_distribution(model_file, model_name)
+
+                start_time = time.time()
+                cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+                search = RandomizedSearchCV(
+                    estimator=pipe,
+                    param_distributions=param_distributions,
+                    n_iter=10,
+                    cv=cv,
+                    n_jobs=-1,
+                    verbose=1,
+                    scoring="f1"
+                )
+                search.fit(X, y)
+                train_time = time.time() - start_time
+
+                best_estimator = search.best_estimator_
+                scaler_name = type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'
+
+                model_filename = f"{model_name}_{sampler_name}_{scaler_name}.pkl"
+                model_path = os.path.join(models_dir, model_filename)
+
+                if save_models:
+                    joblib.dump(best_estimator, model_path)
+                    print(f"💾 Model saved: {model_path}")
+
+                y_pred = best_estimator.predict(X)
+                y_proba = best_estimator.predict_proba(X)[:, 1]
+
+                result = save_params_model_with_best_params(
+                    model=model_name,
+                    scaler=scaler_name,
+                    balancing_name=sampler_name,
+                    training_time=train_time,
+                    accuracy_score_val=accuracy_score(y, y_pred),
+                    precision_score_val=precision_score(y, y_pred),
+                    recall_score_val=recall_score(y, y_pred),
+                    f1_score_val=f1_score(y, y_pred),
+                    roc_auc_score_val=roc_auc_score(y, y_proba),
+                    best_params=search.best_params_,
+                    model_path=model_path  # ⭐ DODAJ ŚCIEŻKĘ DO MODELU W CSV ⭐
                 )
                 results.append(result)
 
