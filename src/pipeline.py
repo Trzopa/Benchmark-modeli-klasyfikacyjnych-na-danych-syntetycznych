@@ -112,7 +112,7 @@ class Pipeline:
 
         return param_distributions
 
-    def prepare_valid_test_data(self, data):
+    def prepare_valid_data(self, data):
         return data
 
     def _prepare_data(self, data):
