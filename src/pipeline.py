@@ -114,6 +114,7 @@ class Pipeline:
 
     def prepare_valid_test_data(self, data):
         return data
+
     def _prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
