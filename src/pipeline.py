@@ -73,10 +73,7 @@ class Pipeline:
 
         if model_name is None:
             return models
-        return models[model_name]()
-
-    def get_model_names(self):
-        return list(self.get_model_class().keys())
+        return models.get(model_name)
 
     def create_pipeline(self, model_name, preprocessing_file, scaler='passthrough', sampler='passthrough'):
         model_cls = self.get_model_class(model_name)
