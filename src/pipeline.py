@@ -174,8 +174,7 @@ class Pipeline:
         return results
 
     def run_all_models(self, data, model_file, preprocessing_file):
-        all_model_names = self.get_model_names
-
+        all_model_names = self.get_model_class().keys()
         all_results = []
 
         for model_name in all_model_names:
