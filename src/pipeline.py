@@ -23,7 +23,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model_with_best_params
+from utils import save_params_model_with_best_params, save_model
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -134,6 +134,7 @@ class Pipeline:
         scalers, samplers = self._get_scalers_and_samplers()
         results = []
         os.makedirs("results/models", exist_ok=True)
+
         for scaler in scalers:
             for sampler_name, sampler in samplers:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
@@ -147,12 +148,18 @@ class Pipeline:
                                             scoring="f1")
                 search.fit(X, y)
                 train_time = time.time() - start_time
-                y_pred = search.best_estimator_.predict(X)
-                y_proba = search.best_estimator_.predict_proba(X)[:, 1]
+
+                best_estimator = search.best_estimator_
+                scaler_name = type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'
+                model_path = f"results/models/{model_name}_{sampler_name}_{scaler_name}.pkl"
+                model_path = save_model(best_estimator, model_path)
+
+                y_pred = best_estimator.predict(X)
+                y_proba = best_estimator.predict_proba(X)[:, 1]
 
                 result = save_params_model_with_best_params(
                     model=model_name,
-                    scaler=type(scaler).__name__ if scaler != 'passthrough' else 'passthrough',
+                    scaler=scaler_name,
                     balancing_name=sampler_name,
                     training_time=train_time,
                     accuracy_score_val=accuracy_score(y, y_pred),
@@ -160,7 +167,8 @@ class Pipeline:
                     recall_score_val=recall_score(y, y_pred),
                     f1_score_val=f1_score(y, y_pred),
                     roc_auc_score_val=roc_auc_score(y, y_proba),
-                    best_params=search.best_params_
+                    best_params=search.best_params_,
+                    model_path=model_path
                 )
                 results.append(result)
 
