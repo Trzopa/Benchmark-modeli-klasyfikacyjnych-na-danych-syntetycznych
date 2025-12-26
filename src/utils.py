@@ -1,6 +1,8 @@
+import os
 from datetime import datetime
 from pathlib import Path
 
+import joblib
 import pandas as pd
 import yaml
 
@@ -15,6 +17,14 @@ def load_config(path):
     with open(path, "r") as f:
         file = yaml.safe_load(f)
     return file
+
+
+def save_model(model, model_path):
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+
+    joblib.dump(model, model_path)
+    print(f"💾 Model saved: {model_path}")
+    return model_path
 
 
 def save_params_model_with_best_params(model, scaler, balancing_name, training_time, accuracy_score_val,
@@ -35,7 +45,6 @@ def save_params_model_with_best_params(model, scaler, balancing_name, training_t
 
     }
     return result
-
 
 
 def to_dataframe(results_list, name_folder):

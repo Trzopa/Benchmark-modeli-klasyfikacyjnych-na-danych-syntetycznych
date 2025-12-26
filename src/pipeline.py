@@ -133,6 +133,7 @@ class Pipeline:
         X, y = self._prepare_data(data)
         scalers, samplers = self._get_scalers_and_samplers()
         results = []
+        os.makedirs("results/models", exist_ok=True)
         for scaler in scalers:
             for sampler_name, sampler in samplers:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
