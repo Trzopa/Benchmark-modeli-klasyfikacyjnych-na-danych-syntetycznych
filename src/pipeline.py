@@ -115,6 +115,11 @@ class Pipeline:
     def _prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
+        return X, y
+
+    def _prepare_data(self, data):
+        X = data.drop(columns="target")
+        y = data["target"]
         scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
         samplers = [
             ('None', 'passthrough'),
