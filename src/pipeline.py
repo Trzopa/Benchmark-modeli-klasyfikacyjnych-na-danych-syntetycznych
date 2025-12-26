@@ -117,9 +117,7 @@ class Pipeline:
         y = data["target"]
         return X, y
 
-    def _prepare_data(self, data):
-        X = data.drop(columns="target")
-        y = data["target"]
+    def _get_scalers_and_samplers(self, data):
         scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
         samplers = [
             ('None', 'passthrough'),
@@ -127,7 +125,7 @@ class Pipeline:
             ('SMOTE', SMOTE(random_state=self.random_state)),
             ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
         ]
-        return X, y, scalers, samplers
+        return scalers, samplers
 
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y, scalers, samplers = self._prepare_data(data)
