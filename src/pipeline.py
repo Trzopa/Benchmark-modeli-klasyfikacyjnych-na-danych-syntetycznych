@@ -189,4 +189,3 @@ def run_all_models(self, data, model_file, preprocessing_file):
 
     return all_results, all_models_dict
 
-# TODO testowanie roznych parametrow, poprawa ich
