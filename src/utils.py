@@ -27,8 +27,7 @@ def save_model(model, model_path):
 def save_params_model_with_best_params(
         model, scaler, balancing_name, training_time, accuracy_score_val,
         precision_score_val, recall_score_val, f1_score_val, roc_auc_score_val,
-        best_params=None, model_path=None
-):
+        best_params=None):
     result = {
         "model": model,
         "scaler": scaler,
@@ -39,8 +38,7 @@ def save_params_model_with_best_params(
         "recall_score": recall_score_val,
         "f1_score": f1_score_val,
         "roc_auc_score": roc_auc_score_val,
-        "best_params": json.dumps(best_params) if best_params else "{}",  # ⭐ dict → string
-        "model_path": model_path
+        "best_params": best_params
     }
     return result
 

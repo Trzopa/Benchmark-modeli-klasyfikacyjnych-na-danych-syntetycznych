@@ -174,22 +174,21 @@ class Pipeline:
             f1_score_val=f1_score(y, y_pred),
             roc_auc_score_val=roc_auc_score(y, y_proba),
             best_params=best_params,
-            model_path="all_models.pkl"
         )
 
         return [result]
 
 
-def run_all_models(self, data, model_file, preprocessing_file):
-    all_model_names = self.get_model_class().keys()
-    all_results = []
+    def run_all_models(self, data, model_file, preprocessing_file):
+        all_model_names = self.get_model_class().keys()
+        all_results = []
 
-    for model_name in all_model_names:
-        print(f"\n{'=' * 50}")
-        print(f"START PROCESSING MODEL: {model_name}")
-        print(f"{'=' * 50}")
+        for model_name in all_model_names:
+            print(f"\n{'=' * 50}")
+            print(f"START PROCESSING MODEL: {model_name}")
+            print(f"{'=' * 50}")
 
-        results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
-        all_results.extend(results_for_model)
+            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
+            all_results.extend(results_for_model)
 
-    return all_results
+        return all_results
