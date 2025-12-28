@@ -22,7 +22,14 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model_with_best_params, save_model
+from utils import (
+    save_params_model_with_best_params,
+    save_model,  # ⭐ DODANE
+    save_all_models,  # ⭐ DODANE jeśli używasz
+    load_data,
+    load_config,
+    to_dataframe
+)
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -172,20 +179,16 @@ class Pipeline:
 
         return results, all_models
 
+    def run_all_models(self, data, model_file, preprocessing_file):
+        all_model_names = self.get_model_class().keys()
+        all_results = []
 
-def run_all_models(self, data, model_file, preprocessing_file):
-    all_model_names = self.get_model_class().keys()
-    all_results = []
-    all_models_dict = {}
+        for model_name in all_model_names:
+            print(f"\n{'=' * 50}")
+            print(f"START PROCESSING MODEL: {model_name}")
+            print(f"{'=' * 50}")
 
-    for model_name in all_model_names:
-        print(f"\n{'=' * 50}")
-        print(f"START PROCESSING MODEL: {model_name}")
-        print(f"{'=' * 50}")
+            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
+            all_results.extend(results_for_model)
 
-        results_for_model, models_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
-        all_results.extend(results_for_model)
-        all_models_dict.update(models_for_model)
-
-    return all_results, all_models_dict
-
+        return all_results

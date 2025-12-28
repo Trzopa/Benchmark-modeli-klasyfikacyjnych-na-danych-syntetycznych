@@ -17,18 +17,11 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def save_all_models(models_dict, name_folder="models"):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    root = Path.cwd().parent
-    results_dir = root / "results" / name_folder
-    results_dir.mkdir(parents=True, exist_ok=True)
-
-    filename = f"all_models_{timestamp}.pkl"
-    file_path = results_dir / filename
-
-    joblib.dump(models_dict, file_path)
-    print(f"All models saved: {file_path}")
-    return str(file_path)
+def save_model(model, model_path):
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    joblib.dump(model, model_path)
+    print(f"💾 Model saved: {model_path}")
+    return model_path
 
 
 def save_params_model_with_best_params(
