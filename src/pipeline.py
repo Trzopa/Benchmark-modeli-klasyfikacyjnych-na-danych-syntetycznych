@@ -143,7 +143,7 @@ class Pipeline:
                                     cv=cv,
                                     n_jobs=-1,
                                     verbose=0,
-                                    scoring="f1_macro")
+                                    scoring="f1")
         search.fit(X, y)
         train_time = time.time() - start_time
 
