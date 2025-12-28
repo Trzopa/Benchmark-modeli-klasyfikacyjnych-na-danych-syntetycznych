@@ -137,9 +137,9 @@ class Pipeline:
             **self.get_scalers_and_samplers_grid(),
             **self.get_param_distribution(model_file, model_name)
         }
-        cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
         start_time = time.time()
-        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
+        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=5,
                                     cv=cv,
                                     n_jobs=-1,
                                     verbose=0,
