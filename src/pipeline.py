@@ -142,8 +142,8 @@ class Pipeline:
         search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
                                     cv=cv,
                                     n_jobs=-1,
-                                    verbose=1,
-                                    scoring="f1")
+                                    verbose=0,
+                                    scoring="f1_macro")
         search.fit(X, y)
         train_time = time.time() - start_time
 
@@ -175,7 +175,6 @@ class Pipeline:
             roc_auc_score_val=roc_auc_score(y, y_proba),
             best_params=best_params,
         )
-
         return [result]
 
 
