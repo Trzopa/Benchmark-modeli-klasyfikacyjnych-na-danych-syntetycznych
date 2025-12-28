@@ -160,12 +160,6 @@ class Pipeline:
         sampler_name = (
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
-
-        os.makedirs("results/models", exist_ok=True)
-        model_filename = f"{model_name}_{sampler_name}_{scaler_name}.pkl"
-        model_path = f"results/models/{model_filename}"
-        joblib.dump(best_estimator, model_path)
-        print(f"💾 Model zapisany: {model_path}")
         y_pred = best_estimator.predict(X)
         y_proba = best_estimator.predict_proba(X)[:, 1]
 
@@ -180,7 +174,7 @@ class Pipeline:
             f1_score_val=f1_score(y, y_pred),
             roc_auc_score_val=roc_auc_score(y, y_proba),
             best_params=best_params,
-            model_path=model_path
+
         )
         return [result]
 
