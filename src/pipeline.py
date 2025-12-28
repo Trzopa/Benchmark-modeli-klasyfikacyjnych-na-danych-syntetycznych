@@ -115,16 +115,6 @@ class Pipeline:
         y = data["target"]
         return X, y
 
-    def _get_scalers_and_samplers(self):
-        scalers = [StandardScaler(), MinMaxScaler(), 'passthrough']
-        samplers = [
-            ('None', 'passthrough'),
-            ('RandomOverSampler', RandomOverSampler(random_state=self.random_state)),
-            ('SMOTE', SMOTE(random_state=self.random_state)),
-            ('RandomUnderSampler', RandomUnderSampler(random_state=self.random_state))
-        ]
-        return scalers, samplers
-
     def get_scalers_and_samplers_grid(self):
         return {
             "scaler": [
