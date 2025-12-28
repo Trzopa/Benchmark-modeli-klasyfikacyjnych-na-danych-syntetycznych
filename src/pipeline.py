@@ -171,7 +171,7 @@ class Pipeline:
                 )
                 results.append(result)
 
-        return results, all_models
+        return results,
 
     def run_all_models(self, data, model_file, preprocessing_file):
         all_model_names = self.get_model_class().keys()
