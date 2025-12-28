@@ -22,15 +22,6 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import (
-    save_params_model_with_best_params,
-    save_model,  # ⭐ DODANE
-    save_all_models,  # ⭐ DODANE jeśli używasz
-    load_data,
-    load_config,
-    to_dataframe
-)
-
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
