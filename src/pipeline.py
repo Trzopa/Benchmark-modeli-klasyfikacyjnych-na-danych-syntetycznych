@@ -125,6 +125,21 @@ class Pipeline:
         ]
         return scalers, samplers
 
+    def get_scalers_and_samplers_grid(self):
+        return {
+            "scaler": [
+                StandardScaler(),
+                MinMaxScaler(),
+                "passthrough"
+            ],
+            "sampler": [
+                "passthrough",
+                RandomOverSampler(random_state=self.random_state),
+                SMOTE(random_state=self.random_state),
+                RandomUnderSampler(random_state=self.random_state)
+            ]
+        }
+
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y = self._prepare_data(data)
         scalers, samplers = self._get_scalers_and_samplers()
