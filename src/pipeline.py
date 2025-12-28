@@ -136,8 +136,6 @@ class Pipeline:
         X, y = self._prepare_data(data)
         scalers, samplers = self._get_scalers_and_samplers()
         results = []
-        all_models = {}
-
         for scaler in scalers:
             for sampler_name, sampler in samplers:
                 pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
@@ -154,12 +152,8 @@ class Pipeline:
 
                 best_estimator = search.best_estimator_
                 scaler_name = type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'
-                model_key = f"{model_name}_{sampler_name}_{scaler_name}"
-                all_models[model_key] = best_estimator
-
                 y_pred = best_estimator.predict(X)
                 y_proba = best_estimator.predict_proba(X)[:, 1]
-
                 model_path = f"all_models.pkl"
 
                 result = save_params_model_with_best_params(
