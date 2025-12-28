@@ -75,16 +75,16 @@ class Pipeline:
             return models
         return models.get(model_name)
 
-    def create_pipeline(self, model_name, preprocessing_file, scaler='passthrough', sampler='passthrough'):
+    def create_pipeline(self, model_name, preprocessing_file):
         model_cls = self.get_model_class(model_name)
         model = model_cls()
+
         pipe = ImbPipeline([
             ('preprocessor', self.build_preprocessor(preprocessing_file)),
-            ('scaler', scaler),
-            ('sampler', sampler),
+            ('scaler', 'passthrough'),
+            ('sampler', 'passthrough'),
             ('clf', model)
         ])
-
         return pipe
 
     def get_param_distribution(self, config_name, model_name):
@@ -132,55 +132,64 @@ class Pipeline:
 
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y = self._prepare_data(data)
-        scalers, samplers = self._get_scalers_and_samplers()
-        results = []
-        for scaler in scalers:
-            for sampler_name, sampler in samplers:
-                pipe = self.create_pipeline(model_name, preprocessing_file, scaler, sampler)
-                param_distributions = self.get_param_distribution(model_file, model_name)
-                start_time = time.time()
-                cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-                search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
-                                            cv=cv,
-                                            n_jobs=-1,
-                                            verbose=1,
-                                            scoring="f1")
-                search.fit(X, y)
-                train_time = time.time() - start_time
+        pipe = self.create_pipeline(model_name, preprocessing_file)
+        param_distributions= {
+            **self.get_scalers_and_samplers_grid(),
+            **self.get_param_distribution(model_file, model_name)
+        }
+        cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        start_time = time.time()
+        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=10,
+                                    cv=cv,
+                                    n_jobs=-1,
+                                    verbose=1,
+                                    scoring="f1")
+        search.fit(X, y)
+        train_time = time.time() - start_time
 
-                best_estimator = search.best_estimator_
-                scaler_name = type(scaler).__name__ if scaler != 'passthrough' else 'passthrough'
-                y_pred = best_estimator.predict(X)
-                y_proba = best_estimator.predict_proba(X)[:, 1]
-                model_path = f"all_models.pkl"
+        best_estimator = search.best_estimator_
+        best_params = search.best_params_
 
-                result = save_params_model_with_best_params(
-                    model=model_name,
-                    scaler=scaler_name,
-                    balancing_name=sampler_name,
-                    training_time=train_time,
-                    accuracy_score_val=accuracy_score(y, y_pred),
-                    precision_score_val=precision_score(y, y_pred),
-                    recall_score_val=recall_score(y, y_pred),
-                    f1_score_val=f1_score(y, y_pred),
-                    roc_auc_score_val=roc_auc_score(y, y_proba),
-                    best_params=search.best_params_,
-                    model_path=model_path
-                )
-                results.append(result)
+        scaler = best_params["scaler"]
+        sampler = best_params["sampler"]
 
-        return results,
+        scaler_name = (
+            type(scaler).__name__ if scaler != "passthrough" else "passthrough"
+        )
+        sampler_name = (
+            type(sampler).__name__ if sampler != "passthrough" else "passthrough"
+        )
 
-    def run_all_models(self, data, model_file, preprocessing_file):
-        all_model_names = self.get_model_class().keys()
-        all_results = []
+        y_pred = best_estimator.predict(X)
+        y_proba = best_estimator.predict_proba(X)[:, 1]
 
-        for model_name in all_model_names:
-            print(f"\n{'=' * 50}")
-            print(f"START PROCESSING MODEL: {model_name}")
-            print(f"{'=' * 50}")
+        result = save_params_model_with_best_params(
+            model=model_name,
+            scaler=scaler_name,
+            balancing_name=sampler_name,
+            training_time=train_time,
+            accuracy_score_val=accuracy_score(y, y_pred),
+            precision_score_val=precision_score(y, y_pred),
+            recall_score_val=recall_score(y, y_pred),
+            f1_score_val=f1_score(y, y_pred),
+            roc_auc_score_val=roc_auc_score(y, y_proba),
+            best_params=best_params,
+            model_path="all_models.pkl"
+        )
 
-            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
-            all_results.extend(results_for_model)
+        return [result]
 
-        return all_results
+
+def run_all_models(self, data, model_file, preprocessing_file):
+    all_model_names = self.get_model_class().keys()
+    all_results = []
+
+    for model_name in all_model_names:
+        print(f"\n{'=' * 50}")
+        print(f"START PROCESSING MODEL: {model_name}")
+        print(f"{'=' * 50}")
+
+        results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
+        all_results.extend(results_for_model)
+
+    return all_results
