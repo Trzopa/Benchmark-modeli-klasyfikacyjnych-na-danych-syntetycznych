@@ -1,5 +1,5 @@
 from pathlib import Path
-from utils import load_config, load_data, to_dataframe, to_joblib
+from utils import load_config, load_data, to_dataframe
 from pipeline import Pipeline
 
 root = Path.cwd().parent
@@ -10,4 +10,3 @@ p = Pipeline()
 # pp = p.run_pipeline(data, "LGBMClassifier",model_file, preprocessing_file )
 all_models = p.run_all_models(data, model_file, preprocessing_file)
 to_dataframe(all_models, "metrics")
-to_joblib(all_models, "models")
