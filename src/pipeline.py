@@ -205,8 +205,7 @@ class Pipeline:
 
     def evaluate_on_test(self, test_df, model_path, model_name):
         model = joblib.load(model_path)
-        X_test = test_df.drop(columns="target")
-        y_test = test_df["target"]
+        X_test, y_test = self._prepare_data(test_df)
 
         y_pred = model.predict(X_test)
         y_proba = model.predict_proba(X_test)[:, 1]
