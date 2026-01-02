@@ -1,12 +1,14 @@
+from datetime import datetime
+
 from pathlib import Path
-from utils import load_config, load_data, to_dataframe
-from pipeline import Pipeline
+
+from utils import load_data
+from utils import predict_valid, load_joblib
 
 root = Path.cwd().parent
-model_file = load_config("config/model.yaml")
-preprocessing_file = load_config("config/preprocessing.yaml")
-data = load_data(f"{root}/data/test.csv")
-p = Pipeline()
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_path = f"{root}/results/predictions/all_models_{timestamp}.csv"
+all_models_file = load_joblib(f"{root}/results/models/all_models_*.pkl")
+data_valid = load_data(f"{root}/data/valid.csv")
 
-all_models = p.run_all_models(data, model_file, preprocessing_file)
-to_dataframe(all_models, "predictions")
+predict_valid(data_valid, all_models_file, output_path)

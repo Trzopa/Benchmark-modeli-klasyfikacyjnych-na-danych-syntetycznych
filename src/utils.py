@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+import joblib
 import pandas as pd
 import yaml
 
@@ -43,3 +44,5 @@ def to_dataframe(results_list, name_folder):
     df.to_csv(file_path, index=False)
     print(f"Wyniki zapisane do: {file_path}")
     return df
+
+
