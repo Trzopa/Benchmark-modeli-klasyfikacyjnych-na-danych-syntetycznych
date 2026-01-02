@@ -31,9 +31,15 @@ warnings.filterwarnings("ignore")
 
 
 class Pipeline:
-    def __init__(self, random_state=42):
+    def __init__(self, random_state=42, models_dir=None):
         self.random_state = random_state
-        self.DIST_MAP = {"randint": randint, "uniform": uniform, "loguniform": loguniform}
+        self.DIST_MAP = {
+            "randint": randint,
+            "uniform": uniform,
+            "loguniform": loguniform,
+        }
+        self.models_dir = models_dir
+        os.makedirs(self.models_dir, exist_ok=True)
 
     def build_preprocessor(self, preprocessing_file, n_neighbors=5):
         knn_cols = []
@@ -116,6 +122,12 @@ class Pipeline:
         y = data["target"]
         return X, y
 
+    def predict_valid(self, data, trained_pipeline):
+        X_valid = data  # tu valid.csv bez targetu
+        y_valid_pred = trained_pipeline.predict(X_valid)
+        y_valid_proba = trained_pipeline.predict_proba(X_valid)[:, 1]
+        return y_valid_pred, y_valid_proba
+
     def get_scalers_and_samplers_grid(self):
         return {
             "scaler": [
@@ -134,7 +146,7 @@ class Pipeline:
     def run_pipeline(self, data, model_name, model_file, preprocessing_file):
         X, y = self._prepare_data(data)
         pipe = self.create_pipeline(model_name, preprocessing_file)
-        param_distributions= {
+        param_distributions = {
             **self.get_scalers_and_samplers_grid(),
             **self.get_param_distribution(model_file, model_name)
         }
@@ -163,6 +175,10 @@ class Pipeline:
         y_pred = best_estimator.predict(X)
         y_proba = best_estimator.predict_proba(X)[:, 1]
 
+        model_filename = f"{model_name}_{scaler_name}_{sampler_name}.joblib"
+        model_path = os.path.join(self.models_dir, model_filename)
+        joblib.dump(best_estimator, model_path)
+
         result = save_params_model_with_best_params(
             model=model_name,
             scaler=scaler_name,
@@ -174,10 +190,10 @@ class Pipeline:
             f1_score_val=f1_score(y, y_pred),
             roc_auc_score_val=roc_auc_score(y, y_proba),
             best_params=best_params,
+            model_path=model_path,
 
         )
         return [result]
-
 
     def run_all_models(self, data, model_file, preprocessing_file):
         all_model_names = self.get_model_class().keys()
@@ -192,3 +208,29 @@ class Pipeline:
             all_results.extend(results_for_model)
 
         return all_results
+
+    def evaluate_on_test(self, test_df, model_path, model_name):
+        model = joblib.load(model_path)
+        X_test = test_df.drop(columns="target")
+        y_test = test_df["target"]
+
+        y_pred = model.predict(X_test)
+        y_proba = model.predict_proba(X_test)[:, 1]
+
+        metrics = {
+            "model": model_name,
+            "accuracy": accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred),
+            "recall": recall_score(y_test, y_pred),
+            "f1": f1_score(y_test, y_pred),
+            "roc_auc": roc_auc_score(y_test, y_proba),
+        }
+        return metrics
+
+    def predict_valid(self, valid_df, model_path):
+        model = joblib.load(model_path)
+        X_valid = valid_df
+
+        y_valid_pred = model.predict(X_valid)
+        y_valid_proba = model.predict_proba(X_valid)[:, 1]
+        return y_valid_pred, y_valid_proba
