@@ -122,12 +122,6 @@ class Pipeline:
         y = data["target"]
         return X, y
 
-    def predict_valid(self, data, trained_pipeline):
-        X_valid = data  # tu valid.csv bez targetu
-        y_valid_pred = trained_pipeline.predict(X_valid)
-        y_valid_proba = trained_pipeline.predict_proba(X_valid)[:, 1]
-        return y_valid_pred, y_valid_proba
-
     def get_scalers_and_samplers_grid(self):
         return {
             "scaler": [
