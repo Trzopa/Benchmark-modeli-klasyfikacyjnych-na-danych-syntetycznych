@@ -24,7 +24,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from src.utils import save_params_model_with_best_params
+from src.utils import save_params_model_with_best_params, save_params_test_data, save_params_valid_data
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -211,16 +211,18 @@ class BenchmarkPipeline:
 
         if has_target:
             y = valid_df["target"]
-            return {
-                "accuracy": accuracy_score(y, y_pred),
-                "precision": precision_score(y, y_pred),
-                "recall": recall_score(y, y_pred),
-                "f1": f1_score(y, y_pred),
-                "roc_auc": roc_auc_score(y, y_proba)
-            }
+            result_test_data = save_params_test_data(
+                model=model,
+                scaler=scaler,
+                balancing_name=balancing_name,
+                accuracy_score=accuracy_score(y, y_pred),
+                precision_score=precision_score(y, y_pred),
+                recall_score=recall_score(y, y_pred),
+                f1_score=f1_score(y, y_pred),
+                roc_auc_score=roc_auc_score(y, y_proba)
+            )
+            return [result_test_data]
         else:
-            df = pd.DataFrame({"prediction": y_pred, "probability": y_proba})
-            df.to_csv(
-                os.path.join(output_dir, f"{os.path.splitext(os.path.basename(model_path))[0]}_valid_predictions.csv"),
-                index=False)
-            return df
+            result_valid_data = save_params_valid_data(model=model, scaler=scaler, balancing_name=balancing_name,
+                                                       y_pred=y_pred, y_proba=y_proba)
+            return result_valid_data
