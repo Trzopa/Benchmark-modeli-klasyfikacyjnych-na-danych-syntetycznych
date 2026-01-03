@@ -47,6 +47,7 @@ def to_dataframe(results_list, name_folder):
     print(f"Wyniki zapisane do: {file_path}")
     return df
 
+
 def load_files_joblib(folder, models):
     for fname in os.listdir(folder):
         if fname.endswith(".joblib"):
