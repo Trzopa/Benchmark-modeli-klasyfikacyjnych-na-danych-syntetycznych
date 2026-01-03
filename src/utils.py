@@ -50,9 +50,9 @@ def to_dataframe(results_list, name_folder):
 
 def load_models(folder):
     models = {}
-    for fname in os.listdir(folder):
-        if fname.endswith(".joblib"):
-            path = os.path.join(folder, fname)
-            name = os.path.splitext(fname)[0]
+    for file in os.listdir(folder):
+        if file.endswith(".joblib"):
+            path = os.path.join(folder, file)
+            name = os.path.splitext(file)[0]
             models[name] = joblib.load(path)
     return models
