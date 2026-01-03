@@ -3,6 +3,7 @@ import time
 import warnings
 
 import joblib
+import numpy as np
 import uniform
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -23,7 +24,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from src.utils import save_params_model_with_best_params
+from src.utils import save_params_model_with_best_params, load_models
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -220,10 +221,29 @@ class Pipeline:
         }
         return metrics
 
-    def predict_valid(self, valid_df, model_path):
-        model = joblib.load(model_path)
+    def predict_valid_single(self, model, valid_df):
         X_valid = valid_df
-
         y_valid_pred = model.predict(X_valid)
         y_valid_proba = model.predict_proba(X_valid)[:, 1]
         return y_valid_pred, y_valid_proba
+
+    def predict_valid_ensemble(self, valid_df, model_folder):
+        models = load_models(model_folder)
+
+        all_preds = []
+        all_probas = []
+
+        for name, model in models.items():
+            y_pred = model.predict(valid_df)
+            if hasattr(model, 'predict_proba'):
+                y_proba = model.predict_proba(valid_df)[:, 1]
+            else:
+                y_proba = np.full(len(y_pred), np.nan)  # jeśli brak proba
+            all_preds.append(y_pred)
+            all_probas.append(y_proba)
+
+        # Średnia
+        y_pred_avg = np.mean(all_preds, axis=0).round().astype(int)
+        y_proba_avg = np.nanmean(all_probas, axis=0)
+
+        return y_pred_avg, y_proba_avg
