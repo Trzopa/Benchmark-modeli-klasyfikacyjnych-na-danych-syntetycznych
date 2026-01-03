@@ -182,7 +182,6 @@ class BenchmarkPipeline:
             training_time=train_time,
             cv_roc_auc=search.best_score_,
             best_params=best_params,
-            model_path=model_path,
         )
         return [result]
 
