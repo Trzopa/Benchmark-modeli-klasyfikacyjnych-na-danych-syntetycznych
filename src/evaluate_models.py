@@ -1,14 +1,14 @@
-from datetime import datetime
-
 from pathlib import Path
-
 from utils import load_data
-from utils import predict_valid, load_joblib
+from pipeline import BenchmarkPipeline
 
 root = Path.cwd().parent
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-output_path = f"{root}/results/predictions/all_models_{timestamp}.csv"
-all_models_file = load_joblib(f"{root}/results/models/all_models_*.pkl")
-data_valid = load_data(f"{root}/data/valid.csv")
+data = load_data(f"{root}/data/valid.csv")  # zakładam pd.DataFrame
+models_dir = f"{root}/results/models"
 
-predict_valid(data_valid, all_models_file, output_path)
+pipe = BenchmarkPipeline(models_dir=models_dir)
+evaluate_valid_data = pipe.evaluate_model_on_valid_test(data, False)
+evaluate_test_data = pipe.evaluate_model_on_valid_test(data, True)
+
+evaluate_valid_data
+evaluate_test_data

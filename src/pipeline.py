@@ -1,8 +1,11 @@
 import os
 import time
 import warnings
+from datetime import datetime
+from pathlib import Path
 
 import joblib
+import pandas as pd
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -20,8 +23,9 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
-from src.utils import save_params_model_with_best_params
+from src.utils import save_params_model_with_best_params, load_models
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -79,8 +83,6 @@ class BenchmarkPipeline:
         if model_name is None:
             return models
         return models.get(model_name)
-
-
 
     def create_pipeline(self, model_name, preprocessing_file):
         model_cls = self.get_model_class(model_name)
@@ -169,8 +171,8 @@ class BenchmarkPipeline:
         sampler_name = (
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
-
-        model_filename = f"{model_name}_{scaler_name}_{sampler_name}.joblib"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_filename = f"{model_name}_{scaler_name}_{sampler_name}_{timestamp}.joblib"
         model_path = os.path.join(self.models_dir, model_filename)
         joblib.dump(best_estimator, model_path)
 
@@ -199,8 +201,28 @@ class BenchmarkPipeline:
 
         return all_results
 
-    def predict_valid_single(self, model, valid_df):
-        X_valid = valid_df
-        y_valid_pred = model.predict(X_valid)
-        y_valid_proba = model.predict_proba(X_valid)[:, 1]
-        return y_valid_pred, y_valid_proba
+    def evaluate_model_on_valid_test(self, model_path, valid_df, has_target=False):
+        model = joblib.load(model_path)
+        X = valid_df.drop(columns="target") if has_target else valid_df
+
+        y_pred = model.predict(X)
+        y_proba = model.predict_proba(X)[:, 1]
+
+        output_dir = "results/predictions"
+        os.makedirs(output_dir, exist_ok=True)
+
+        if has_target:
+            y = valid_df["target"]
+            return {
+                "accuracy": accuracy_score(y, y_pred),
+                "precision": precision_score(y, y_pred),
+                "recall": recall_score(y, y_pred),
+                "f1": f1_score(y, y_pred),
+                "roc_auc": roc_auc_score(y, y_proba)
+            }
+        else:
+            df = pd.DataFrame({"prediction": y_pred, "probability": y_proba})
+            df.to_csv(
+                os.path.join(output_dir, f"{os.path.splitext(os.path.basename(model_path))[0]}_valid_predictions.csv"),
+                index=False)
+            return df
