@@ -3,8 +3,6 @@ import time
 import warnings
 
 import joblib
-import numpy as np
-import uniform
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -15,7 +13,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -24,14 +21,14 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from src.utils import save_params_model_with_best_params, load_models
+from src.utils import save_params_model_with_best_params
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
 
 
-class Pipeline:
+class BenchmarkPipeline:
     def __init__(self, random_state=42, models_dir=None):
         self.random_state = random_state
         self.DIST_MAP = {
@@ -69,26 +66,30 @@ class Pipeline:
 
     def get_model_class(self, model_name=None):
         models = {
-            "LogisticRegression": lambda: LogisticRegression(),
+            "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
             "KNeighborsClassifier": lambda: KNeighborsClassifier(),
             "SVC": lambda: SVC(probability=True),
             "NaiveBayes": lambda: GaussianNB(),
-            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(),
-            "RandomForestClassifier": lambda: RandomForestClassifier(),
-            "XGBClassifier": lambda: XGBClassifier(),
-            "LGBMClassifier": lambda: LGBMClassifier(),
+            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
+            "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
+            "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
+            "LGBMClassifier": lambda: LGBMClassifier(random_state=self.random_state),
         }
 
         if model_name is None:
             return models
         return models.get(model_name)
 
+
+
     def create_pipeline(self, model_name, preprocessing_file):
         model_cls = self.get_model_class(model_name)
         model = model_cls()
 
+        preprocessor = self.build_preprocessor(preprocessing_file)
+
         pipe = ImbPipeline([
-            ('preprocessor', self.build_preprocessor(preprocessing_file)),
+            ('preprocessor', preprocessor),
             ('scaler', 'passthrough'),
             ('sampler', 'passthrough'),
             ('clf', model)
@@ -148,10 +149,11 @@ class Pipeline:
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
         start_time = time.time()
         search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=5,
+                                    scoring="roc_auc",
                                     cv=cv,
                                     n_jobs=-1,
                                     verbose=0,
-                                    scoring="f1")
+                                    )
         search.fit(X, y)
         train_time = time.time() - start_time
 
@@ -167,8 +169,6 @@ class Pipeline:
         sampler_name = (
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
-        y_pred = best_estimator.predict(X)
-        y_proba = best_estimator.predict_proba(X)[:, 1]
 
         model_filename = f"{model_name}_{scaler_name}_{sampler_name}.joblib"
         model_path = os.path.join(self.models_dir, model_filename)
@@ -179,14 +179,9 @@ class Pipeline:
             scaler=scaler_name,
             balancing_name=sampler_name,
             training_time=train_time,
-            accuracy_score_val=accuracy_score(y, y_pred),
-            precision_score_val=precision_score(y, y_pred),
-            recall_score_val=recall_score(y, y_pred),
-            f1_score_val=f1_score(y, y_pred),
-            roc_auc_score_val=roc_auc_score(y, y_proba),
+            cv_roc_auc=search.best_score_,
             best_params=best_params,
             model_path=model_path,
-
         )
         return [result]
 
@@ -204,46 +199,8 @@ class Pipeline:
 
         return all_results
 
-    def evaluate_on_test(self, test_df, model_path, model_name):
-        model = joblib.load(model_path)
-        X_test, y_test = self._prepare_data(test_df)
-
-        y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test)[:, 1]
-
-        metrics = {
-            "model": model_name,
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred),
-            "recall": recall_score(y_test, y_pred),
-            "f1": f1_score(y_test, y_pred),
-            "roc_auc": roc_auc_score(y_test, y_proba),
-        }
-        return metrics
-
     def predict_valid_single(self, model, valid_df):
         X_valid = valid_df
         y_valid_pred = model.predict(X_valid)
         y_valid_proba = model.predict_proba(X_valid)[:, 1]
         return y_valid_pred, y_valid_proba
-
-    def predict_valid_ensemble(self, valid_df, model_folder):
-        models = load_models(model_folder)
-
-        all_preds = []
-        all_probas = []
-
-        for name, model in models.items():
-            y_pred = model.predict(valid_df)
-            if hasattr(model, 'predict_proba'):
-                y_proba = model.predict_proba(valid_df)[:, 1]
-            else:
-                y_proba = np.full(len(y_pred), np.nan)  # jeśli brak proba
-            all_preds.append(y_pred)
-            all_probas.append(y_proba)
-
-        # Średnia
-        y_pred_avg = np.mean(all_preds, axis=0).round().astype(int)
-        y_proba_avg = np.nanmean(all_probas, axis=0)
-
-        return y_pred_avg, y_proba_avg

@@ -16,23 +16,19 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def save_params_model_with_best_params(
-        model, scaler, balancing_name, training_time, accuracy_score_val,
-        precision_score_val, recall_score_val, f1_score_val, roc_auc_score_val,
-        best_params=None, model_path=None):
+def save_params_model_with_best_params(model, scaler, balancing_name, training_time, cv_roc_auc, best_params,
+                                       model_path,
+                                       ):
     result = {
         "model": model,
         "scaler": scaler,
-        "balancing_name": balancing_name,
+        "balancing": balancing_name,
         "training_time": training_time,
-        "accuracy_score": accuracy_score_val,
-        "precision_score": precision_score_val,
-        "recall_score": recall_score_val,
-        "f1_score": f1_score_val,
-        "roc_auc_score": roc_auc_score_val,
+        "cv_roc_auc": cv_roc_auc,
         "best_params": best_params,
-        "model_path": model_path
+        "model_path": model_path,
     }
+
     return result
 
 
