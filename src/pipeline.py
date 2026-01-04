@@ -225,4 +225,4 @@ class BenchmarkPipeline:
         else:
             result_valid_data = save_params_valid_data(model=model, scaler=scaler, balancing_name=balancing_name,
                                                        y_pred=y_pred, y_proba=y_proba)
-            return result_valid_data
+            return [result_valid_data]
