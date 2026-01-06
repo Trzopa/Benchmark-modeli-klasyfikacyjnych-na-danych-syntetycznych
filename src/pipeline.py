@@ -149,7 +149,7 @@ class BenchmarkPipeline:
         }
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
         start_time = time.time()
-        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=5,
+        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=30,
                                     scoring="roc_auc",
                                     cv=cv,
                                     n_jobs=-1,
