@@ -16,6 +16,18 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
+def save_machine_learning_model(model, directory, model_name, scaler_name, sampler_name):
+    models_path = Path(directory)
+    models_path.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{model_name}_{scaler_name}_{sampler_name}_{timestamp}.joblib"
+    full_path = models_path / filename
+
+    joblib.dump(model, full_path)
+    return full_path
+
+
 def save_params_model_with_best_params(model, scaler, balancing_name, training_time, cv_roc_auc, best_params):
     result = {
         "model": model,

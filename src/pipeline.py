@@ -2,6 +2,7 @@ import os
 import time
 import warnings
 from datetime import datetime
+from pathlib import Path
 
 import joblib
 from imblearn.over_sampling import SMOTE, RandomOverSampler
@@ -14,7 +15,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -23,7 +23,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from src.utils import save_params_model_with_best_params, save_params_test_data, save_params_valid_data
+from src.utils import save_params_model_with_best_params, save_machine_learning_model
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -66,6 +66,22 @@ class BenchmarkPipeline:
 
         return param_distributions
 
+    def get_model_class(self, model_name=None):
+        models = {
+            # "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
+            # "KNeighborsClassifier": lambda: KNeighborsClassifier(),
+            # "SVC": lambda: SVC(probability=True),
+            # "NaiveBayes": lambda: GaussianNB(),
+            # "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
+            # "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
+            # "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
+            "LGBMClassifier": lambda: LGBMClassifier(random_state=self.random_state),
+        }
+
+        if model_name is None:
+            return models
+        return models.get(model_name)
+
     def build_preprocessor(self, preprocessing_file, n_neighbors=5):
         knn_cols = []
         mean_cols = []
@@ -92,22 +108,6 @@ class BenchmarkPipeline:
             transformers.append(("drop_cols", 'drop', drop_cols))
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
-
-    def get_model_class(self, model_name=None):
-        models = {
-            "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
-            "KNeighborsClassifier": lambda: KNeighborsClassifier(),
-            "SVC": lambda: SVC(probability=True),
-            "NaiveBayes": lambda: GaussianNB(),
-            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
-            "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
-            "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
-            "LGBMClassifier": lambda: LGBMClassifier(random_state=self.random_state),
-        }
-
-        if model_name is None:
-            return models
-        return models.get(model_name)
 
     def create_pipeline(self, model_name, preprocessing_file):
         model_cls = self.get_model_class(model_name)
@@ -191,14 +191,13 @@ class BenchmarkPipeline:
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
 
-        # Save trained model with descriptive filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Create models directory if it doesn't exist
-        os.makedirs(models_dir, exist_ok=True)
-        model_filename = f"{model_name}_{scaler_name}_{sampler_name}_{timestamp}.joblib"
-        model_path = os.path.join(models_dir, model_filename)
-        joblib.dump(best_estimator, model_path)
-
+        save_machine_learning_model(
+            model=best_estimator,
+            directory=models_dir,
+            model_name=model_name,
+            scaler_name=scaler_name,
+            sampler_name=sampler_name
+        )
         # Save metrics and configuration to results
         result = save_params_model_with_best_params(
             model=model_name,
