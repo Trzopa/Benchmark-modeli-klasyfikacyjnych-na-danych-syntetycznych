@@ -23,7 +23,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from src.utils import save_params_model_with_best_params, save_machine_learning_model
+from src.utils import save_params_model_with_best_params, save_machine_learning_model_in_joblib
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -68,13 +68,13 @@ class BenchmarkPipeline:
 
     def get_model_class(self, model_name=None):
         models = {
-            # "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
-            # "KNeighborsClassifier": lambda: KNeighborsClassifier(),
-            # "SVC": lambda: SVC(probability=True),
-            # "NaiveBayes": lambda: GaussianNB(),
-            # "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
-            # "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
-            # "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
+            "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
+            "KNeighborsClassifier": lambda: KNeighborsClassifier(),
+            "SVC": lambda: SVC(probability=True),
+            "NaiveBayes": lambda: GaussianNB(),
+            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
+            "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
+            "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
             "LGBMClassifier": lambda: LGBMClassifier(random_state=self.random_state),
         }
 
@@ -191,7 +191,7 @@ class BenchmarkPipeline:
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
 
-        save_machine_learning_model(
+        save_machine_learning_model_in_joblib(
             model=best_estimator,
             directory=models_dir,
             model_name=model_name,

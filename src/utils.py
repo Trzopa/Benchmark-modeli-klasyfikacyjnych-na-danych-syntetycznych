@@ -16,7 +16,7 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def save_machine_learning_model(model, directory, model_name, scaler_name, sampler_name):
+def save_machine_learning_model_in_joblib(model, directory, model_name, scaler_name, sampler_name):
     models_path = Path(directory)
     models_path.mkdir(parents=True, exist_ok=True)
 
