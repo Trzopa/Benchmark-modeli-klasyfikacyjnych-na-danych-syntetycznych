@@ -4,7 +4,6 @@ import warnings
 from datetime import datetime
 
 import joblib
-import pandas as pd
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -32,21 +31,47 @@ warnings.filterwarnings("ignore")
 
 
 class BenchmarkPipeline:
-    def __init__(self, random_state=42, models_dir=None):
+    def __init__(self, random_state=42):
         self.random_state = random_state
-        self.DIST_MAP = {
+
+    def _get_dist_params(self):
+        return {
             "randint": randint,
             "uniform": uniform,
             "loguniform": loguniform,
         }
-        self.models_dir = models_dir
-        os.makedirs(self.models_dir, exist_ok=True)
+
+    def get_param_distribution(self, config_name, model_name):
+        model_config = config_name[model_name]
+        param_distributions = {}
+
+        for param_name, spec in model_config.items():
+            # If spec is a list, use it directly (discrete choices)
+            if isinstance(spec, list):
+                param_distributions[param_name] = spec
+
+            # If spec defines a distribution, create scipy stats object
+            elif isinstance(spec, dict) and "distribution" in spec:
+                dist_name = spec["distribution"]
+                dist_cls = self._get_dist_params()[dist_name]
+
+                if dist_name == "randint":
+                    param_distributions[param_name] = dist_cls(
+                        low=spec["low"], high=spec["high"]
+                    )
+                elif dist_name == "uniform":
+                    param_distributions[param_name] = dist_cls(
+                        loc=spec["loc"], scale=spec["scale"]
+                    )
+
+        return param_distributions
 
     def build_preprocessor(self, preprocessing_file, n_neighbors=5):
         knn_cols = []
         mean_cols = []
         drop_cols = []
 
+        # Categorize columns by their imputation strategy
         for col, strategy in preprocessing_file.items():
             if strategy == 'knn':
                 knn_cols.append(col)
@@ -57,6 +82,7 @@ class BenchmarkPipeline:
             else:
                 raise ValueError(f"Unknown imputation strategy: {strategy}")
 
+        # Build list of transformers based on configured strategies
         transformers = []
         if knn_cols:
             transformers.append(("knn_impute", KNNImputer(n_neighbors=n_neighbors), knn_cols))
@@ -89,6 +115,8 @@ class BenchmarkPipeline:
 
         preprocessor = self.build_preprocessor(preprocessing_file)
 
+        # Pipeline steps: preprocessing -> scaling -> sampling -> classification
+        # 'passthrough' placeholders will be replaced during hyperparameter search
         pipe = ImbPipeline([
             ('preprocessor', preprocessor),
             ('scaler', 'passthrough'),
@@ -96,29 +124,6 @@ class BenchmarkPipeline:
             ('clf', model)
         ])
         return pipe
-
-    def get_param_distribution(self, config_name, model_name):
-        model_config = config_name[model_name]
-        param_distributions = {}
-
-        for param_name, spec in model_config.items():
-            if isinstance(spec, list):
-                param_distributions[param_name] = spec
-
-            elif isinstance(spec, dict) and "distribution" in spec:
-                dist_name = spec["distribution"]
-                dist_cls = self.DIST_MAP[dist_name]
-
-                if dist_name == "randint":
-                    param_distributions[param_name] = dist_cls(
-                        low=spec["low"], high=spec["high"]
-                    )
-                elif dist_name == "uniform":
-                    param_distributions[param_name] = dist_cls(
-                        loc=spec["loc"], scale=spec["scale"]
-                    )
-
-        return param_distributions
 
     def _prepare_data(self, data):
         X = data.drop(columns="target")
@@ -130,37 +135,52 @@ class BenchmarkPipeline:
             "scaler": [
                 StandardScaler(),
                 MinMaxScaler(),
-                "passthrough"
+                "passthrough"  # No scaling
             ],
             "sampler": [
-                "passthrough",
+                "passthrough",  # No resampling
                 RandomOverSampler(random_state=self.random_state),
                 SMOTE(random_state=self.random_state),
                 RandomUnderSampler(random_state=self.random_state)
             ]
         }
 
-    def run_pipeline(self, data, model_name, model_file, preprocessing_file):
+    def run_pipeline(self, data, model_name, model_file, preprocessing_file, models_dir):
+
+        # Prepare features and target
         X, y = self._prepare_data(data)
+
+        # Create base pipeline
         pipe = self.create_pipeline(model_name, preprocessing_file)
+
+        # Combine preprocessing grid (scalers/samplers) with model hyperparameters
         param_distributions = {
             **self.get_scalers_and_samplers_grid(),
             **self.get_param_distribution(model_file, model_name)
         }
+
+        # Configure cross-validation strategy
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+
+        # Perform randomized hyperparameter search
         start_time = time.time()
-        search = RandomizedSearchCV(estimator=pipe, param_distributions=param_distributions, n_iter=30,
-                                    scoring="roc_auc",
-                                    cv=cv,
-                                    n_jobs=-1,
-                                    verbose=0,
-                                    )
+        search = RandomizedSearchCV(
+            estimator=pipe,
+            param_distributions=param_distributions,
+            n_iter=30,  # Number of random combinations to try
+            scoring="roc_auc",  # Optimization metric
+            cv=cv,
+            n_jobs=-1,  # Use all CPU cores
+            verbose=0,
+        )
         search.fit(X, y)
         train_time = time.time() - start_time
 
+        # Extract best model and parameters
         best_estimator = search.best_estimator_
         best_params = search.best_params_
 
+        # Parse scaler and sampler names from best parameters
         scaler = best_params["scaler"]
         sampler = best_params["sampler"]
 
@@ -170,59 +190,79 @@ class BenchmarkPipeline:
         sampler_name = (
             type(sampler).__name__ if sampler != "passthrough" else "passthrough"
         )
+
+        # Save trained model with descriptive filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create models directory if it doesn't exist
+        os.makedirs(models_dir, exist_ok=True)
         model_filename = f"{model_name}_{scaler_name}_{sampler_name}_{timestamp}.joblib"
-        model_path = os.path.join(self.models_dir, model_filename)
+        model_path = os.path.join(models_dir, model_filename)
         joblib.dump(best_estimator, model_path)
 
+        # Save metrics and configuration to results
         result = save_params_model_with_best_params(
             model=model_name,
             scaler=scaler_name,
             balancing_name=sampler_name,
             training_time=train_time,
-            cv_roc_auc=search.best_score_,
+            cv_roc_auc=search.best_score_,  # Best cross-validation ROC AUC score
             best_params=best_params,
         )
         return [result]
 
-    def run_all_models(self, data, model_file, preprocessing_file):
+    def run_all_models(self, data, model_file, preprocessing_file, models_dir):
+        # Get list of all available model names
         all_model_names = self.get_model_class().keys()
         all_results = []
 
+        # Iterate through each model and run the pipeline
         for model_name in all_model_names:
             print(f"\n{'=' * 50}")
             print(f"START PROCESSING MODEL: {model_name}")
             print(f"{'=' * 50}")
 
-            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file)
+            # Train model and collect results
+            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file, models_dir)
             all_results.extend(results_for_model)
 
         return all_results
 
-    def evaluate_model_on_valid_test(self, model_path, valid_df, has_target=False):
-        model = joblib.load(model_path)
-        X = valid_df.drop(columns="target") if has_target else valid_df
-
-        y_pred = model.predict(X)
-        y_proba = model.predict_proba(X)[:, 1]
-
-        output_dir = "results/predictions"
-        os.makedirs(output_dir, exist_ok=True)
-
-        if has_target:
-            y = valid_df["target"]
-            result_test_data = save_params_test_data(
-                model=model,
-                scaler=scaler,
-                balancing_name=balancing_name,
-                accuracy_score=accuracy_score(y, y_pred),
-                precision_score=precision_score(y, y_pred),
-                recall_score=recall_score(y, y_pred),
-                f1_score=f1_score(y, y_pred),
-                roc_auc_score=roc_auc_score(y, y_proba)
-            )
-            return [result_test_data]
-        else:
-            result_valid_data = save_params_valid_data(model=model, scaler=scaler, balancing_name=balancing_name,
-                                                       y_pred=y_pred, y_proba=y_proba)
-            return [result_valid_data]
+    # def evaluate_model_on_valid_test(self, model_path, df, has_target=False):
+    #
+    #     base = os.path.splitext(os.path.basename(model_path))[0]
+    #     parts = base.split("_")
+    #     model_name = parts[0]
+    #     scaler_name = parts[1] if len(parts) > 1 else "unknown"
+    #     balancing_name = parts[2] if len(parts) > 2 else "unknown"
+    #
+    #     model = joblib.load(model_path)
+    #
+    #     X = df.drop(columns="target") if has_target else df
+    #
+    #     y_pred = model.predict(X)
+    #     y_proba = model.predict_proba(X)[:, 1]
+    #
+    #     if has_target:
+    #         y = df["target"]
+    #         result_test_data = save_params_test_data(
+    #             model=model_name,
+    #             scaler=scaler_name,
+    #             balancing_name=balancing_name,
+    #             accuracy_score=accuracy_score(y, y_pred),
+    #             precision_score=precision_score(y, y_pred),
+    #             recall_score=recall_score(y, y_pred),
+    #             f1_score=f1_score(y, y_pred),
+    #             roc_auc_score=roc_auc_score(y, y_proba),
+    #             model_path=model_path,
+    #         )
+    #         return [result_test_data]
+    #     else:
+    #         result_valid_data = save_params_valid_data(
+    #             model=model_name,
+    #             scaler=scaler_name,
+    #             balancing_name=balancing_name,
+    #             y_pred=y_pred,
+    #             y_proba=y_proba,
+    #             model_path=model_path,
+    #         )
+    #         return [result_valid_data]
