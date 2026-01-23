@@ -68,14 +68,14 @@ class BenchmarkPipeline:
 
     def get_model_class(self, model_name=None):
         models = {
-            "LogisticRegression": lambda: LogisticRegression(random_state=self.random_state),
-            "KNeighborsClassifier": lambda: KNeighborsClassifier(),
-            "SVC": lambda: SVC(probability=True),
-            "NaiveBayes": lambda: GaussianNB(),
-            "DecisionTreeClassifier": lambda: DecisionTreeClassifier(random_state=self.random_state),
-            "RandomForestClassifier": lambda: RandomForestClassifier(random_state=self.random_state),
-            "XGBClassifier": lambda: XGBClassifier(random_state=self.random_state),
-            "LGBMClassifier": lambda: LGBMClassifier(random_state=self.random_state),
+            "LogisticRegression": LogisticRegression(random_state=self.random_state),
+            "KNeighborsClassifier": KNeighborsClassifier(),
+            "SVC": SVC(probability=True, random_state=self.random_state),
+            "NaiveBayes": GaussianNB(),
+            "DecisionTreeClassifier": DecisionTreeClassifier(random_state=self.random_state),
+            "RandomForestClassifier": RandomForestClassifier(random_state=self.random_state),
+            "XGBClassifier": XGBClassifier(random_state=self.random_state),
+            "LGBMClassifier": LGBMClassifier(verbose=-1, random_state=self.random_state),
         }
 
         if model_name is None:
@@ -110,9 +110,7 @@ class BenchmarkPipeline:
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
     def create_pipeline(self, model_name, preprocessing_file):
-        model_cls = self.get_model_class(model_name)
-        model = model_cls()
-
+        model = self.get_model_class(model_name)
         preprocessor = self.build_preprocessor(preprocessing_file)
 
         # Pipeline steps: preprocessing -> scaling -> sampling -> classification
@@ -211,7 +209,7 @@ class BenchmarkPipeline:
 
     def run_all_models(self, data, model_file, preprocessing_file, models_dir):
         # Get list of all available model names
-        all_model_names = self.get_model_class().keys()
+        all_model_names = list(self.get_model_class().keys())
         all_results = []
 
         # Iterate through each model and run the pipeline

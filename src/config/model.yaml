@@ -99,43 +99,43 @@ XGBClassifier:
 LGBMClassifier:
   clf__n_estimators:
     distribution: randint
-    low: 50
-    high: 150
+    low: 100
+    high: 500
 
   clf__learning_rate:
     distribution: loguniform
-    low: 0.005
-    high: 0.03
+    low: 0.01
+    high: 0.1
 
   clf__num_leaves:
     distribution: randint
-    low: 7
-    high: 15
+    low: 20
+    high: 60
 
   clf__max_depth:
     distribution: randint
-    low: 2
-    high: 5
+    low: 4
+    high: 12
 
   clf__min_child_samples:
     distribution: randint
-    low: 20
-    high: 100
+    low: 10
+    high: 40
 
   clf__min_split_gain:
     distribution: uniform
-    loc: 0.1
-    scale: 0.2
+    loc: 0
+    scale: 0.02
 
   clf__reg_alpha:
     distribution: loguniform
-    low: 0.1
-    high: 5.0
+    low: 1e-8
+    high: 1.0
 
   clf__reg_lambda:
     distribution: loguniform
-    low: 0.1
-    high: 10.0
+    low: 1e-8
+    high: 1.0
 
 NaiveBayes: { }
 
