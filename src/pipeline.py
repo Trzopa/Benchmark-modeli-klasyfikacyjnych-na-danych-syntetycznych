@@ -18,8 +18,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-
-from src.utils import save_params_model_with_best_params, save_machine_learning_model_in_joblib
+from itertools import product
+from utils import save_params_model_with_best_params
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -30,14 +30,14 @@ class BenchmarkPipeline:
     def __init__(self, random_state=42):
         self.random_state = random_state
 
-    def _get_dist_params(self):
+    def __get_dist_params(self):
         return {
             "randint": randint,
             "uniform": uniform,
             "loguniform": loguniform,
         }
 
-    def get_param_distribution(self, config_name, model_name):
+    def __get_param_distribution(self, config_name, model_name):
         model_config = config_name[model_name]
         param_distributions = {}
 
@@ -49,9 +49,9 @@ class BenchmarkPipeline:
             # If spec defines a distribution, create scipy stats object
             elif isinstance(spec, dict) and "distribution" in spec:
                 dist_name = spec["distribution"]
-                dist_cls = self._get_dist_params()[dist_name]
+                dist_cls = self.__get_dist_params()[dist_name]
 
-                if dist_name == "randint":
+                if dist_name in ["randint", "loguniform"]:
                     param_distributions[param_name] = dist_cls(
                         low=spec["low"], high=spec["high"]
                     )
@@ -62,7 +62,7 @@ class BenchmarkPipeline:
 
         return param_distributions
 
-    def get_model_class(self, model_name=None):
+    def __get_model(self, model_name=None):
         models = {
             "LogisticRegression": LogisticRegression(random_state=self.random_state),
             "KNeighborsClassifier": KNeighborsClassifier(),
@@ -78,7 +78,7 @@ class BenchmarkPipeline:
             return models
         return models.get(model_name)
 
-    def build_preprocessor(self, preprocessing_file, n_neighbors=5):
+    def __build_preprocessor(self, preprocessing_file, n_neighbors=5):
         knn_cols = []
         mean_cols = []
         drop_cols = []
@@ -106,8 +106,8 @@ class BenchmarkPipeline:
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
     def create_pipeline(self, model_name, preprocessing_file):
-        model = self.get_model_class(model_name)
-        preprocessor = self.build_preprocessor(preprocessing_file)
+        model = self.__get_model(model_name)
+        preprocessor = self.__build_preprocessor(preprocessing_file)
 
         # Pipeline steps: preprocessing -> scaling -> sampling -> classification
         # 'passthrough' placeholders will be replaced during hyperparameter search
@@ -119,104 +119,77 @@ class BenchmarkPipeline:
         ])
         return pipe
 
-    def _prepare_data(self, data):
+    def __prepare_data(self, data):
         X = data.drop(columns="target")
         y = data["target"]
         return X, y
 
-    def get_scalers_and_samplers_grid(self):
+    def __get_scalers_and_samplers_grid(self):
         return {
             "scaler": [
+                "passthrough",  # No scaling
                 StandardScaler(),
                 MinMaxScaler(),
-                "passthrough"  # No scaling
             ],
             "sampler": [
                 "passthrough",  # No resampling
                 RandomOverSampler(random_state=self.random_state),
+                RandomUnderSampler(random_state=self.random_state),
                 SMOTE(random_state=self.random_state),
-                RandomUnderSampler(random_state=self.random_state)
             ]
         }
 
-    def run_pipeline(self, data, model_name, model_file, preprocessing_file, models_dir):
-
+    def run_pipeline(self, data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj, ):
         # Prepare features and target
-        X, y = self._prepare_data(data)
+        X, y = self.__prepare_data(data)
 
-        # Create base pipeline
         pipe = self.create_pipeline(model_name, preprocessing_file)
 
-        # Combine preprocessing grid (scalers/samplers) with model hyperparameters
-        param_distributions = {
-            **self.get_scalers_and_samplers_grid(),
-            **self.get_param_distribution(model_file, model_name)
-        }
+        pipe.set_params(scaler=scaler_obj, sampler=sampler_obj)
+        param_distributions = self.__get_param_distribution(model_file, model_name)
+        scaler_name = type(scaler_obj).__name__ if scaler_obj != "passthrough" else "passthrough"
+        sampler_name = type(sampler_obj).__name__ if sampler_obj != "passthrough" else "passthrough"
 
-        # Configure cross-validation strategy
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
 
-        # Perform randomized hyperparameter search
-        start_time = time.time()
         search = RandomizedSearchCV(
             estimator=pipe,
             param_distributions=param_distributions,
-            n_iter=30,  # Number of random combinations to try
-            scoring="roc_auc",  # Optimization metric
+            n_iter=46,
+            scoring="roc_auc",
             cv=cv,
-            n_jobs=-1,  # Use all CPU cores
+            n_jobs=-1,
             verbose=0,
         )
+
+        start_time = time.time()
         search.fit(X, y)
         train_time = time.time() - start_time
 
-        # Extract best model and parameters
-        best_estimator = search.best_estimator_
-        best_params = search.best_params_
-
-        # Parse scaler and sampler names from best parameters
-        scaler = best_params["scaler"]
-        sampler = best_params["sampler"]
-
-        scaler_name = (
-            type(scaler).__name__ if scaler != "passthrough" else "passthrough"
-        )
-        sampler_name = (
-            type(sampler).__name__ if sampler != "passthrough" else "passthrough"
-        )
-
-        save_machine_learning_model_in_joblib(
-            model=best_estimator,
-            directory=models_dir,
-            model_name=model_name,
-            scaler_name=scaler_name,
-            sampler_name=sampler_name
-        )
-        # Save metrics and configuration to results
         result = save_params_model_with_best_params(
             model=model_name,
             scaler=scaler_name,
             balancing_name=sampler_name,
             training_time=train_time,
-            cv_roc_auc=search.best_score_,  # Best cross-validation ROC AUC score
-            best_params=best_params,
+            cv_roc_auc=search.best_score_,
+            best_params=search.best_params_,
         )
         return [result]
 
-    def run_all_models(self, data, model_file, preprocessing_file, models_dir):
-        # Get list of all available model names
-        all_model_names = list(self.get_model_class().keys())
+    def run_all_models(self, data, model_file, preprocessing_file):
+        all_model_names = list(self.__get_model().keys())
+        grid_options = self.__get_scalers_and_samplers_grid()
+
         all_results = []
+        combinations = list(product(all_model_names, grid_options["scaler"], grid_options["sampler"]))
 
-        # Iterate through each model and run the pipeline
-        for model_name in all_model_names:
-            print(f"\n{'=' * 50}")
-            print(f"START PROCESSING MODEL: {model_name}")
-            print(f"{'=' * 50}")
+        for model_name, scaler_obj, sampler_obj in combinations:
+            print(f"Przetwarzanie {len(all_results) + 1}/96: {model_name}")
 
-            # Train model and collect results
-            results_for_model = self.run_pipeline(data, model_name, model_file, preprocessing_file, models_dir)
-            all_results.extend(results_for_model)
+            result = self.run_pipeline(
+                data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj
+            )
+            all_results.extend(result)
 
         return all_results
 
@@ -259,3 +232,10 @@ class BenchmarkPipeline:
     #             model_path=model_path,
     #         )
     #         return [result_valid_data]
+
+# TODO: ustawienia get model dac do yamla
+# TODO: testowanie  n_iter
+# TODO: testowanie
+# TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
+# TODO: zrobic benchmark dla valid i testu
+# TODO: zrobic report
