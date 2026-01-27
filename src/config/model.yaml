@@ -1,6 +1,8 @@
 # === Define hyperparameter search grids ===
 
 LogisticRegression:
+  clf__random_state:
+    value: 42
   clf__C:
     distribution: uniform
     loc: 0.1
@@ -17,11 +19,14 @@ LogisticRegression:
     high: 2000
 
 DecisionTreeClassifier:
+  clf__random_state:
+    value: 42
   clf__criterion:
     - gini
     - entropy
     - log_loss
   clf__max_depth:
+
     distribution: randint
     low: 3
     high: 20
@@ -38,6 +43,8 @@ DecisionTreeClassifier:
     - log2
 
 RandomForestClassifier:
+  clf__random_state:
+    value: 42
   clf__n_estimators:
     distribution: randint
     low: 20
@@ -63,6 +70,8 @@ RandomForestClassifier:
     - log2
 
 XGBClassifier:
+  clf__random_state:
+    value: 42
   clf__n_estimators:
     distribution: randint
     low: 50
@@ -97,6 +106,10 @@ XGBClassifier:
     scale: 1
 
 LGBMClassifier:
+  clf__verbose:
+    value: 0
+  clf__random_state:
+    value: 42
   clf__n_estimators:
     distribution: randint
     low: 100
@@ -112,34 +125,23 @@ LGBMClassifier:
     low: 20
     high: 60
 
-  clf__max_depth:
-    distribution: randint
-    low: 4
-    high: 12
-
-  clf__min_child_samples:
-    distribution: randint
-    low: 10
-    high: 40
+  clf__reg_alpha:
+    distribution: loguniform
+    low: 0.00000001 # 1e-8
+    high: 1.0
 
   clf__min_split_gain:
     distribution: uniform
     loc: 0
     scale: 0.02
 
-  clf__reg_alpha:
-    distribution: loguniform
-    low: 1e-8
-    high: 1.0
-
-  clf__reg_lambda:
-    distribution: loguniform
-    low: 1e-8
-    high: 1.0
-
 NaiveBayes: { }
 
 SVC:
+  clf__probability:
+    value: true
+  clf__random_state:
+    value: 42
   clf__C:
     low: 0.1
     high: 10
