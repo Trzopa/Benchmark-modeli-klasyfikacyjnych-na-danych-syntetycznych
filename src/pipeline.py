@@ -1,5 +1,7 @@
+import re
 import time
 import warnings
+from pathlib import Path
 
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -11,6 +13,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -20,6 +23,9 @@ from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from itertools import product
 from utils import save_params_model_with_best_params
+import ast
+import pandas as pd
+from utils import load_config, load_data, to_dataframe
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -42,36 +48,38 @@ class BenchmarkPipeline:
         param_distributions = {}
 
         for param_name, spec in model_config.items():
-            # If spec is a list, use it directly (discrete choices)
+            # 1. Proste listy
             if isinstance(spec, list):
                 param_distributions[param_name] = spec
 
-            # If spec defines a distribution, create scipy stats object
+            # 2. NOWOŚĆ: Obsługa "value" (np. random_state: value: 42)
+            elif isinstance(spec, dict) and "value" in spec:
+                param_distributions[param_name] = [spec["value"]]
+
+            # 3. Rozkłady statystyczne
             elif isinstance(spec, dict) and "distribution" in spec:
                 dist_name = spec["distribution"]
                 dist_cls = self.__get_dist_params()[dist_name]
 
-                if dist_name in ["randint", "loguniform"]:
-                    param_distributions[param_name] = dist_cls(
-                        low=spec["low"], high=spec["high"]
-                    )
+                if dist_name == "randint":
+                    param_distributions[param_name] = dist_cls(low=spec["low"], high=spec["high"])
                 elif dist_name == "uniform":
-                    param_distributions[param_name] = dist_cls(
-                        loc=spec["loc"], scale=spec["scale"]
-                    )
+                    param_distributions[param_name] = dist_cls(loc=spec["loc"], scale=spec["scale"])
+                elif dist_name == "loguniform":
+                    param_distributions[param_name] = dist_cls(spec["low"], spec["high"])
 
         return param_distributions
 
     def __get_model(self, model_name=None):
         models = {
-            "LogisticRegression": LogisticRegression(random_state=self.random_state),
+            "LogisticRegression": LogisticRegression(),
             "KNeighborsClassifier": KNeighborsClassifier(),
-            "SVC": SVC(probability=True, random_state=self.random_state),
+            "SVC": SVC(),
             "NaiveBayes": GaussianNB(),
-            "DecisionTreeClassifier": DecisionTreeClassifier(random_state=self.random_state),
-            "RandomForestClassifier": RandomForestClassifier(random_state=self.random_state),
-            "XGBClassifier": XGBClassifier(random_state=self.random_state),
-            "LGBMClassifier": LGBMClassifier(verbose=-1, random_state=self.random_state),
+            "DecisionTreeClassifier": DecisionTreeClassifier(),
+            "RandomForestClassifier": RandomForestClassifier(),
+            "XGBClassifier": XGBClassifier(),
+            "LGBMClassifier": LGBMClassifier(),
         }
 
         if model_name is None:
@@ -120,9 +128,12 @@ class BenchmarkPipeline:
         return pipe
 
     def __prepare_data(self, data):
-        X = data.drop(columns="target")
-        y = data["target"]
-        return X, y
+        if "target" in data.columns:
+            X = data.drop(columns="target")
+            y = data["target"]
+            return X, y
+        else:
+            return data, None
 
     def __get_scalers_and_samplers_grid(self):
         return {
@@ -155,8 +166,8 @@ class BenchmarkPipeline:
         search = RandomizedSearchCV(
             estimator=pipe,
             param_distributions=param_distributions,
-            n_iter=46,
-            scoring="roc_auc",
+            n_iter=50,
+            scoring="accuracy",
             cv=cv,
             n_jobs=-1,
             verbose=0,
@@ -193,49 +204,75 @@ class BenchmarkPipeline:
 
         return all_results
 
-    # def evaluate_model_on_valid_test(self, model_path, df, has_target=False):
-    #
-    #     base = os.path.splitext(os.path.basename(model_path))[0]
-    #     parts = base.split("_")
-    #     model_name = parts[0]
-    #     scaler_name = parts[1] if len(parts) > 1 else "unknown"
-    #     balancing_name = parts[2] if len(parts) > 2 else "unknown"
-    #
-    #     model = joblib.load(model_path)
-    #
-    #     X = df.drop(columns="target") if has_target else df
-    #
-    #     y_pred = model.predict(X)
-    #     y_proba = model.predict_proba(X)[:, 1]
-    #
-    #     if has_target:
-    #         y = df["target"]
-    #         result_test_data = save_params_test_data(
-    #             model=model_name,
-    #             scaler=scaler_name,
-    #             balancing_name=balancing_name,
-    #             accuracy_score=accuracy_score(y, y_pred),
-    #             precision_score=precision_score(y, y_pred),
-    #             recall_score=recall_score(y, y_pred),
-    #             f1_score=f1_score(y, y_pred),
-    #             roc_auc_score=roc_auc_score(y, y_proba),
-    #             model_path=model_path,
-    #         )
-    #         return [result_test_data]
-    #     else:
-    #         result_valid_data = save_params_valid_data(
-    #             model=model_name,
-    #             scaler=scaler_name,
-    #             balancing_name=balancing_name,
-    #             y_pred=y_pred,
-    #             y_proba=y_proba,
-    #             model_path=model_path,
-    #         )
-    #         return [result_valid_data]
+    def get_configs(self, results_df):
+        configs = {}
+        for _, row in results_df.iterrows():
+            params = self.__parse_best_params(row['best_params'])
 
-# TODO: ustawienia get model dac do yamla
-# TODO: testowanie  n_iter
-# TODO: testowanie
-# TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
-# TODO: zrobic benchmark dla valid i testu
-# TODO: zrobic report
+            configs = {
+                'model': row['model'],
+                'scaler': row['scaler'],
+                'sampler': row['balancing_name'],
+                'params': params
+            }
+        return configs
+
+    def __parse_best_params(self, params_str):
+        clean_str = params_str.replace('np.float64(', '').replace(')', '')
+        return ast.literal_eval(clean_str)
+
+    # mam tuple z modelami i prarametrami i chce to wczytac i wlaczyc na danych walidavyjnych
+    # trzeba podzielic na 196b modeli osobno
+
+    def evaluate_to_valid_data(self, train_data, valid_data, results_df, model_name, preprocessing_file, model_file,
+                               scaler_obj, sampler_obj, ):
+        pipe = self.create_pipeline(model_name, preprocessing_file)
+        X_train, y_train = self.__prepare_data(train_data)
+        X_valid = self.__prepare_data(valid_data)
+        pipe.fit(X_train, y_train)
+
+    #
+    #     y_valid_pred = pipe.predict(X_valid)
+    #
+    #      y_valid_proba = pipe.predict_proba(X_valid)[:, 1]
+    def evaluate_to_test_data(self, train_data, valid_data, results_df, model_name, preprocessing_file):
+        pipe = self.create_pipeline(model_name, preprocessing_file)
+        X_train, y_train = self.__prepare_data(train_data)
+        X_test, y_test = self.__prepare_data(valid_data)
+        pipe.fit(X_train, y_train)
+
+    #
+    # y_valid_pred = pipe.predict(X_valid)
+    #
+    # y_valid_proba = pipe.predict_proba(X_valid)[:, 1]
+
+    def ww(self, data_df):
+        piplines = self.get_configs(data_df)
+        for m in piplines.items():
+         for klucz, wartosc in m.items():
+            if klucz == 'params':
+                print(f"\n⚙️  PARAMETRY MODELU:")
+                for p_name, p_val in wartosc.items():
+                    print(f"   • {p_name: <25}: {p_val}")
+            else:
+                # {: <10} ładnie wyrównuje tekst do kolumn
+                print(f"🔹 {klucz.capitalize(): <10}: {wartosc}")
+
+        print("=" * 40 + "\n")
+    # TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
+    # TODO: zrobic benchmark dla valid i testu
+    # TODO: zrobic report
+
+
+if __name__ == "__main__":
+    root = Path.cwd().parent
+    data = load_data(f"{root}/results/metrics/results_20260127_112530.csv")
+    root = Path.cwd().parent
+    model_file = load_config("config/model.yaml")
+    preprocessing_file = load_config("config/preprocessing.yaml")
+    b = BenchmarkPipeline()
+    bd = b.get_configs(data)
+    # Poprawna nazwa to dtypes
+    print(type(bd))
+    bb = b.ww(data)
+    print(bb)

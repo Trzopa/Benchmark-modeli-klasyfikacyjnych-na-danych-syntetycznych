@@ -107,7 +107,9 @@ XGBClassifier:
 
 LGBMClassifier:
   clf__verbose:
-    value: 0
+    value: -1
+    clf__importance_type:
+      value:
   clf__random_state:
     value: 42
   clf__n_estimators:
