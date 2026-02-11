@@ -29,29 +29,32 @@ def save_params_model_with_best_params(model, scaler, balancing_name, training_t
     return result
 
 
-def save_params_test_data(
-        model, scaler, balancing_name, accuracy_score,
-        precision_score, recall_score, f1_score, roc_auc_score):
+def save_params_model_with_evaluate_valid_data(model, scaler, balancing_name, training_time, cv_roc_auc, predictions):
     result = {
         "model": model,
         "scaler": scaler,
         "balancing_name": balancing_name,
+        "training_time": training_time,
+        "cv_roc_auc": cv_roc_auc,
+        "predictions": predictions
+    }
+
+    return result
+
+
+def save_params_model_with_evaluate_test_data(
+        model, scaler, balancing_name, accuracy_score,
+        precision_score, recall_score, f1_score, roc_auc_score, training_time):
+    result = {
+        "model": model,
+        "scaler": scaler,
+        "balancing_name": balancing_name,
+        "training_time": training_time,
         "accuracy_score": accuracy_score,
         "precision_score": precision_score,
         "recall_score": recall_score,
         "f1_score": f1_score,
         "roc_auc_score": roc_auc_score
-    }
-    return result
-
-
-def save_params_valid_data(model, scaler, balancing_name, y_pred, y_proba):
-    result = {
-        "model": model,
-        "scaler": scaler,
-        "balancing_name": balancing_name,
-        "prediction": y_pred,
-        "probability": y_proba
     }
     return result
 

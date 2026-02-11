@@ -1,13 +1,15 @@
 from pathlib import Path
-from utils import load_data, to_dataframe
+from utils import load_data, to_dataframe, load_config
 from pipeline import BenchmarkPipeline
 
 root = Path.cwd().parent
-data = load_data(f"{root}/data/valid.csv")  # zakładam pd.DataFrame
-models_dir = f"{root}/results/models"
 
-pipe = BenchmarkPipeline(models_dir=models_dir)
-evaluate_valid_data = pipe.evaluate_model_on_valid_test(models_dir, data, False)
-evaluate_test_data = pipe.evaluate_model_on_valid_test(models_dir, data, True)
+data = load_data(f"{root}/results/metrics/results_20260127_112530.csv")
+data_train = load_data(f"{root}/data/train.csv")
+data_test = load_data(f"{root}/data/test.csv")
+data_valid = load_data(f"{root}/data/valid.csv")
+root = Path.cwd().parent
+preprocessing_file = load_config("config/preprocessing.yaml")
+b = BenchmarkPipeline()
+evaluate_valid_data = b.evaluate_to_test_data(data_train, data_test, data, preprocessing_file)
 to_dataframe(evaluate_valid_data, "predictions")
-to_dataframe(evaluate_test_data, "predictions")

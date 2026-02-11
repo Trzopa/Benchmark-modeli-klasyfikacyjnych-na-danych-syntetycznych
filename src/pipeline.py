@@ -1,6 +1,7 @@
-import re
+import ast
 import time
 import warnings
+from itertools import product
 from pathlib import Path
 
 from imblearn.over_sampling import SMOTE, RandomOverSampler
@@ -13,7 +14,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, recall_score, precision_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -21,11 +22,10 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-from itertools import product
+
+from utils import load_config, load_data, save_params_model_with_evaluate_valid_data, \
+    save_params_model_with_evaluate_test_data
 from utils import save_params_model_with_best_params
-import ast
-import pandas as pd
-from utils import load_config, load_data, to_dataframe
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -74,7 +74,7 @@ class BenchmarkPipeline:
         models = {
             "LogisticRegression": LogisticRegression(),
             "KNeighborsClassifier": KNeighborsClassifier(),
-            "SVC": SVC(),
+            "SVC": SVC(probability=True),
             "NaiveBayes": GaussianNB(),
             "DecisionTreeClassifier": DecisionTreeClassifier(),
             "RandomForestClassifier": RandomForestClassifier(),
@@ -134,6 +134,23 @@ class BenchmarkPipeline:
             return X, y
         else:
             return data, None
+
+    def __get_scaler_from_name(self, name):
+        mapping = {
+            "passthrough": "passthrough",
+            "StandardScaler": StandardScaler(),
+            "MinMaxScaler": MinMaxScaler(),
+        }
+        return mapping[name]
+
+    def __get_sampler_from_name(self, name):
+        mapping = {
+            "passthrough": "passthrough",
+            "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
+            "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
+            "SMOTE": SMOTE(random_state=self.random_state),
+        }
+        return mapping[name]
 
     def __get_scalers_and_samplers_grid(self):
         return {
@@ -205,7 +222,7 @@ class BenchmarkPipeline:
         return all_results
 
     def get_configs(self, results_df):
-        configs = {}
+        all_configs = []
         for _, row in results_df.iterrows():
             params = self.__parse_best_params(row['best_params'])
 
@@ -215,64 +232,84 @@ class BenchmarkPipeline:
                 'sampler': row['balancing_name'],
                 'params': params
             }
-        return configs
+            all_configs.append(configs)
+        return all_configs
 
     def __parse_best_params(self, params_str):
         clean_str = params_str.replace('np.float64(', '').replace(')', '')
         return ast.literal_eval(clean_str)
 
-    # mam tuple z modelami i prarametrami i chce to wczytac i wlaczyc na danych walidavyjnych
-    # trzeba podzielic na 196b modeli osobno
-
-    def evaluate_to_valid_data(self, train_data, valid_data, results_df, model_name, preprocessing_file, model_file,
-                               scaler_obj, sampler_obj, ):
-        pipe = self.create_pipeline(model_name, preprocessing_file)
+    def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
+        all_predictions = []
+        configs = self.get_configs(results_df)
         X_train, y_train = self.__prepare_data(train_data)
-        X_valid = self.__prepare_data(valid_data)
-        pipe.fit(X_train, y_train)
+        X_valid, _ = self.__prepare_data(valid_data)
+        for config in configs:
+            scaler = self.__get_scaler_from_name(config["scaler"])
+            sampler = self.__get_sampler_from_name(config["sampler"])
 
-    #
-    #     y_valid_pred = pipe.predict(X_valid)
-    #
-    #      y_valid_proba = pipe.predict_proba(X_valid)[:, 1]
-    def evaluate_to_test_data(self, train_data, valid_data, results_df, model_name, preprocessing_file):
-        pipe = self.create_pipeline(model_name, preprocessing_file)
+            pipe = self.create_pipeline(config["model"], preprocessing_file)
+            pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
+            start_time = time.time()
+            pipe.fit(X_train, y_train)
+            end_time = time.time()
+            training_duration = end_time - start_time
+            y_proba = pipe.predict_proba(X_valid)[:, 1]
+            y_pred = pipe.predict(X_valid)
+            result = save_params_model_with_evaluate_valid_data(model=config["model"], scaler=config["scaler"],
+                                                                balancing_name=config["sampler"],
+                                                                training_time=training_duration,
+                                                                cv_roc_auc=y_proba.mean(), predictions=y_pred)
+            all_predictions.append(result)
+        return all_predictions
+
+    def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
+        all_predictions = []
+        configs = self.get_configs(results_df)
         X_train, y_train = self.__prepare_data(train_data)
-        X_test, y_test = self.__prepare_data(valid_data)
-        pipe.fit(X_train, y_train)
+        X_test, y_test = self.__prepare_data(test_data)
 
-    #
-    # y_valid_pred = pipe.predict(X_valid)
-    #
-    # y_valid_proba = pipe.predict_proba(X_valid)[:, 1]
+        for config in configs:
+            scaler = self.__get_scaler_from_name(config["scaler"])
+            sampler = self.__get_sampler_from_name(config["sampler"])
 
-    def ww(self, data_df):
-        piplines = self.get_configs(data_df)
-        for m in piplines.items():
-         for klucz, wartosc in m.items():
-            if klucz == 'params':
-                print(f"\n⚙️  PARAMETRY MODELU:")
-                for p_name, p_val in wartosc.items():
-                    print(f"   • {p_name: <25}: {p_val}")
-            else:
-                # {: <10} ładnie wyrównuje tekst do kolumn
-                print(f"🔹 {klucz.capitalize(): <10}: {wartosc}")
+            pipe = self.create_pipeline(config["model"], preprocessing_file)
+            pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
+            start_time = time.time()
+            pipe.fit(X_train, y_train)
+            end_time = time.time()
+            training_duration = end_time - start_time
+            y_pred = pipe.predict(X_test)
+            y_proba = pipe.predict_proba(X_test)[:, 1]
+            result = save_params_model_with_evaluate_test_data(model=config["model"], scaler=config["scaler"],
+                                                               balancing_name=config["sampler"],
+                                                               training_time=training_duration,
+                                                               accuracy_score=accuracy_score(y_test, y_pred),
+                                                               precision_score=precision_score(y_test, y_pred),
+                                                               recall_score=recall_score(y_test, y_pred),
+                                                               f1_score=f1_score(y_test, y_pred),
+                                                               roc_auc_score=roc_auc_score(y_test, y_proba))
+            all_predictions.append(result)
+        return all_predictions
 
-        print("=" * 40 + "\n")
-    # TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
-    # TODO: zrobic benchmark dla valid i testu
-    # TODO: zrobic report
+
+# TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
+# TODO: zrobic benchmark dla valid i testu
+# TODO: zrobic report
+# TODO:
 
 
 if __name__ == "__main__":
     root = Path.cwd().parent
     data = load_data(f"{root}/results/metrics/results_20260127_112530.csv")
+    data_train = load_data(f"{root}/data/train.csv")
+    data_test = load_data(f"{root}/data/test.csv")
+    data_valid = load_data(f"{root}/data/valid.csv")
     root = Path.cwd().parent
     model_file = load_config("config/model.yaml")
     preprocessing_file = load_config("config/preprocessing.yaml")
     b = BenchmarkPipeline()
-    bd = b.get_configs(data)
+    ve = b.evaluate_to_valid_data(data_train, data_valid, data, preprocessing_file)
+    # te = b.evaluate_to_test_data(data_train, data_test, data, preprocessing_file)
+    print(ve)
     # Poprawna nazwa to dtypes
-    print(type(bd))
-    bb = b.ww(data)
-    print(bb)
