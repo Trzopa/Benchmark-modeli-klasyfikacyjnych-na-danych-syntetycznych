@@ -168,8 +168,8 @@ class BenchmarkPipeline:
         search = RandomizedSearchCV(
             estimator=pipe,
             param_distributions=param_distributions,
-            n_iter=50,
-            scoring="accuracy",
+            n_iter=100,
+            scoring="roc_auc",
             cv=cv,
             n_jobs=-1,
             verbose=0,
