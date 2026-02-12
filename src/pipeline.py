@@ -135,22 +135,7 @@ class BenchmarkPipeline:
         else:
             return data, None
 
-    def __get_scaler_from_name(self, name):
-        mapping = {
-            "passthrough": "passthrough",
-            "StandardScaler": StandardScaler(),
-            "MinMaxScaler": MinMaxScaler(),
-        }
-        return mapping[name]
 
-    def __get_sampler_from_name(self, name):
-        mapping = {
-            "passthrough": "passthrough",
-            "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
-            "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
-            "SMOTE": SMOTE(random_state=self.random_state),
-        }
-        return mapping[name]
 
     def __get_scalers_and_samplers_grid(self):
         return {
@@ -220,77 +205,6 @@ class BenchmarkPipeline:
             all_results.extend(result)
 
         return all_results
-
-    def get_configs(self, results_df):
-        all_configs = []
-        for _, row in results_df.iterrows():
-            params = self.__parse_best_params(row['best_params'])
-
-            configs = {
-                'model': row['model'],
-                'scaler': row['scaler'],
-                'sampler': row['balancing_name'],
-                'params': params
-            }
-            all_configs.append(configs)
-        return all_configs
-
-    def __parse_best_params(self, params_str):
-        clean_str = params_str.replace('np.float64(', '').replace(')', '')
-        return ast.literal_eval(clean_str)
-
-    def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
-        all_predictions = []
-        configs = self.get_configs(results_df)
-        X_train, y_train = self.__prepare_data(train_data)
-        X_valid, _ = self.__prepare_data(valid_data)
-        for config in configs:
-            scaler = self.__get_scaler_from_name(config["scaler"])
-            sampler = self.__get_sampler_from_name(config["sampler"])
-
-            pipe = self.create_pipeline(config["model"], preprocessing_file)
-            pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
-            start_time = time.time()
-            pipe.fit(X_train, y_train)
-            end_time = time.time()
-            training_duration = end_time - start_time
-            y_proba = pipe.predict_proba(X_valid)[:, 1]
-            y_pred = pipe.predict(X_valid)
-            result = save_params_model_with_evaluate_valid_data(model=config["model"], scaler=config["scaler"],
-                                                                balancing_name=config["sampler"],
-                                                                training_time=training_duration,
-                                                                cv_roc_auc=y_proba.mean(), predictions=y_pred)
-            all_predictions.append(result)
-        return all_predictions
-
-    def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
-        all_predictions = []
-        configs = self.get_configs(results_df)
-        X_train, y_train = self.__prepare_data(train_data)
-        X_test, y_test = self.__prepare_data(test_data)
-
-        for config in configs:
-            scaler = self.__get_scaler_from_name(config["scaler"])
-            sampler = self.__get_sampler_from_name(config["sampler"])
-
-            pipe = self.create_pipeline(config["model"], preprocessing_file)
-            pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
-            start_time = time.time()
-            pipe.fit(X_train, y_train)
-            end_time = time.time()
-            training_duration = end_time - start_time
-            y_pred = pipe.predict(X_test)
-            y_proba = pipe.predict_proba(X_test)[:, 1]
-            result = save_params_model_with_evaluate_test_data(model=config["model"], scaler=config["scaler"],
-                                                               balancing_name=config["sampler"],
-                                                               training_time=training_duration,
-                                                               accuracy_score=accuracy_score(y_test, y_pred),
-                                                               precision_score=precision_score(y_test, y_pred),
-                                                               recall_score=recall_score(y_test, y_pred),
-                                                               f1_score=f1_score(y_test, y_pred),
-                                                               roc_auc_score=roc_auc_score(y_test, y_proba))
-            all_predictions.append(result)
-        return all_predictions
 
 
 # TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
