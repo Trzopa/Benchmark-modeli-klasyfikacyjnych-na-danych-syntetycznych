@@ -207,10 +207,9 @@ class BenchmarkPipeline:
         return all_results
 
 
-# TODO: testowanie  doanie printow w ostatniej metodzie aby wyspitlilo ile tych parametrow przeszlo
-# TODO: zrobic benchmark dla valid i testu
+
 # TODO: zrobic report
-# TODO:
+# TODO: poczytac czy dobrze zrobilem ewaluacje
 
 
 if __name__ == "__main__":

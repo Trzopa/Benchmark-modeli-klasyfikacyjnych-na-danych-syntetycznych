@@ -15,6 +15,14 @@ class ModelEvaluator(BenchmarkPipeline):
     def __init__(self):
         super().__init__()
 
+    def __prepare_data(self, data):
+        if "target" in data.columns:
+            X = data.drop(columns="target")
+            y = data["target"]
+            return X, y
+        else:
+            return data, None
+
     def __get_scaler_from_name(self, name):
         mapping = {
             "passthrough": "passthrough",
@@ -91,30 +99,22 @@ class ModelEvaluator(BenchmarkPipeline):
 
     def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
         configs = self.get_configs(results_df)
-
         X_train, y_train = self.__prepare_data(train_data)
         X_valid, _ = self.__prepare_data(valid_data)
-
         results = []
-
         for config in configs:
             y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_valid, preprocessing_file)
             result = self.__evaluate_valid(y_pred, y_proba, config, duration)
             results.append(result)
-
         return results
 
     def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
         configs = self.get_configs(results_df)
-
         X_train, y_train = self.__prepare_data(train_data)
         X_test, y_test = self.__prepare_data(test_data)
-
         results = []
-
         for config in configs:
             y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_test, preprocessing_file)
-
             result = self.__evaluate_test(y_test, y_pred, y_proba, config, duration)
             results.append(result)
 
