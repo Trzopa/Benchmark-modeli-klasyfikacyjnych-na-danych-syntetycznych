@@ -10,6 +10,12 @@ from utils import save_params_model_with_evaluate_valid_data, \
     save_params_model_with_evaluate_test_data
 from pipeline import BenchmarkPipeline
 
+# TODO: zastanowic sie czy mozna usunac funkcji scalerow i saplerow aby byla tylko jedna
+# TODO: zastanowic sie czy mozna nie powielac metody __prepare_data
+# TODO: czy dobry mam kod
+
+
+
 
 class ModelEvaluator(BenchmarkPipeline):
     def __init__(self):

@@ -11,5 +11,7 @@ data_valid = load_data(f"{root}/data/valid.csv")
 root = Path.cwd().parent
 preprocessing_file = load_config("config/preprocessing.yaml")
 b = ModelEvaluator()
-evaluate_valid_data = b.evaluate_to_test_data(data_train, data_test, data, preprocessing_file)
+evaluate_valid_data = b.evaluate_to_valid_data(data_train, data_valid, data, preprocessing_file)
 to_dataframe(evaluate_valid_data, "predictions")
+evaluate_test_data = b.evaluate_to_test_data(data_train, data_test, data, preprocessing_file)
+to_dataframe(evaluate_test_data, "predictions")
