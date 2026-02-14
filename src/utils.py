@@ -29,14 +29,14 @@ def save_params_model_with_best_params(model, scaler, balancing_name, training_t
     return result
 
 
-def save_params_model_with_evaluate_valid_data(model, scaler, balancing_name, training_time, cv_roc_auc, predictions):
+def save_params_model_with_evaluate_valid_data(model, scaler, balancing_name, training_time, y_proba, predictions):
     result = {
         "model": model,
         "scaler": scaler,
         "balancing_name": balancing_name,
         "training_time": training_time,
-        "cv_roc_auc": cv_roc_auc,
-        "predictions": predictions
+        "predictions": predictions,
+        "y_proba": y_proba
     }
 
     return result
