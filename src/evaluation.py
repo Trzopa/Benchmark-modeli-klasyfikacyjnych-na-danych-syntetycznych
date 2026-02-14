@@ -21,30 +21,29 @@ class ModelEvaluator(BenchmarkPipeline):
     def __init__(self):
         super().__init__()
 
-    def __prepare_data(self, data):
-        if "target" in data.columns:
-            X = data.drop(columns="target")
-            y = data["target"]
-            return X, y
-        else:
-            return data, None
+    # def __prepare_data(self, data):
+    #     if "target" in data.columns:
+    #         X = data.drop(columns="target")
+    #         y = data["target"]
+    #         return X, y
+    #     else:
+    #         return data, None
 
-    def __get_scaler_from_name(self, name):
-        mapping = {
-            "passthrough": "passthrough",
-            "StandardScaler": StandardScaler(),
-            "MinMaxScaler": MinMaxScaler(),
+    def __get_transformer_from_name(self, name, transformer_type):
+        transformers = {
+            'scaler': {
+                "passthrough": "passthrough",
+                "StandardScaler": StandardScaler(),
+                "MinMaxScaler": MinMaxScaler(),
+            },
+            'sampler': {
+                "passthrough": "passthrough",
+                "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
+                "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
+                "SMOTE": SMOTE(random_state=self.random_state),
+            }
         }
-        return mapping[name]
-
-    def __get_sampler_from_name(self, name):
-        mapping = {
-            "passthrough": "passthrough",
-            "RandomOverSampler": RandomOverSampler(random_state=self.random_state),
-            "RandomUnderSampler": RandomUnderSampler(random_state=self.random_state),
-            "SMOTE": SMOTE(random_state=self.random_state),
-        }
-        return mapping[name]
+        return transformers[transformer_type][name]
 
     def get_configs(self, results_df):
         all_configs = []
@@ -65,9 +64,8 @@ class ModelEvaluator(BenchmarkPipeline):
         return ast.literal_eval(clean_str)
 
     def __train_and_predict(self, config, X_train, y_train, X_eval, preprocessing_file):
-        scaler = self.__get_scaler_from_name(config["scaler"])
-        sampler = self.__get_sampler_from_name(config["sampler"])
-
+        scaler = self.__get_transformer_from_name(config["scaler"], "scaler")  # ✅ Z BenchmarkPipeline
+        sampler = self.__get_transformer_from_name(config["sampler"], "sampler")
         pipe = self.create_pipeline(config["model"], preprocessing_file)
         pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
 
@@ -86,8 +84,9 @@ class ModelEvaluator(BenchmarkPipeline):
             scaler=config["scaler"],
             balancing_name=config["sampler"],
             training_time=training_duration,
-            cv_roc_auc=y_proba.mean(),
-            predictions=y_pred
+            predictions=y_pred,
+            y_proba=y_proba
+
         )
 
     def __evaluate_test(self, y_test, y_pred, y_proba, config, training_duration):
@@ -105,8 +104,8 @@ class ModelEvaluator(BenchmarkPipeline):
 
     def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
         configs = self.get_configs(results_df)
-        X_train, y_train = self.__prepare_data(train_data)
-        X_valid, _ = self.__prepare_data(valid_data)
+        X_train, y_train = self.prepare_data(train_data)
+        X_valid, _ = self.prepare_data(valid_data)
         results = []
         for config in configs:
             y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_valid, preprocessing_file)
@@ -116,8 +115,8 @@ class ModelEvaluator(BenchmarkPipeline):
 
     def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
         configs = self.get_configs(results_df)
-        X_train, y_train = self.__prepare_data(train_data)
-        X_test, y_test = self.__prepare_data(test_data)
+        X_train, y_train = self.prepare_data(train_data)
+        X_test, y_test = self.prepare_data(test_data)
         results = []
         for config in configs:
             y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_test, preprocessing_file)

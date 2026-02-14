@@ -1,4 +1,3 @@
-import ast
 import time
 import warnings
 from itertools import product
@@ -14,7 +13,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, recall_score, precision_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -23,8 +21,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import load_config, load_data, save_params_model_with_evaluate_valid_data, \
-    save_params_model_with_evaluate_test_data
+from utils import load_config, load_data
 from utils import save_params_model_with_best_params
 
 set_config(transform_output="pandas")
@@ -127,15 +124,13 @@ class BenchmarkPipeline:
         ])
         return pipe
 
-    def __prepare_data(self, data):
+    def prepare_data(self, data):
         if "target" in data.columns:
             X = data.drop(columns="target")
             y = data["target"]
             return X, y
         else:
             return data, None
-
-
 
     def __get_scalers_and_samplers_grid(self):
         return {
@@ -205,24 +200,3 @@ class BenchmarkPipeline:
             all_results.extend(result)
 
         return all_results
-
-
-
-# TODO: zrobic report
-# TODO: poczytac czy dobrze zrobilem ewaluacje
-
-
-if __name__ == "__main__":
-    root = Path.cwd().parent
-    data = load_data(f"{root}/results/metrics/results_20260127_112530.csv")
-    data_train = load_data(f"{root}/data/train.csv")
-    data_test = load_data(f"{root}/data/test.csv")
-    data_valid = load_data(f"{root}/data/valid.csv")
-    root = Path.cwd().parent
-    model_file = load_config("config/model.yaml")
-    preprocessing_file = load_config("config/preprocessing.yaml")
-    b = BenchmarkPipeline()
-    ve = b.evaluate_to_valid_data(data_train, data_valid, data, preprocessing_file)
-    # te = b.evaluate_to_test_data(data_train, data_test, data, preprocessing_file)
-    print(ve)
-    # Poprawna nazwa to dtypes
