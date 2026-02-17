@@ -1,6 +1,7 @@
 import ast
 import time
 
+import numpy as np
 from imblearn.over_sampling import RandomOverSampler, SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
@@ -10,24 +11,15 @@ from utils import save_params_model_with_evaluate_valid_data, \
     save_params_model_with_evaluate_test_data
 from pipeline import BenchmarkPipeline
 
+
 # TODO: zastanowic sie czy mozna usunac funkcji scalerow i saplerow aby byla tylko jedna
 # TODO: zastanowic sie czy mozna nie powielac metody __prepare_data
 # TODO: czy dobry mam kod
 
 
-
-
 class ModelEvaluator(BenchmarkPipeline):
     def __init__(self):
         super().__init__()
-
-    # def __prepare_data(self, data):
-    #     if "target" in data.columns:
-    #         X = data.drop(columns="target")
-    #         y = data["target"]
-    #         return X, y
-    #     else:
-    #         return data, None
 
     def __get_transformer_from_name(self, name, transformer_type):
         transformers = {
@@ -64,7 +56,7 @@ class ModelEvaluator(BenchmarkPipeline):
         return ast.literal_eval(clean_str)
 
     def __train_and_predict(self, config, X_train, y_train, X_eval, preprocessing_file):
-        scaler = self.__get_transformer_from_name(config["scaler"], "scaler")  # ✅ Z BenchmarkPipeline
+        scaler = self.__get_transformer_from_name(config["scaler"], "scaler")
         sampler = self.__get_transformer_from_name(config["sampler"], "sampler")
         pipe = self.create_pipeline(config["model"], preprocessing_file)
         pipe.set_params(scaler=scaler, sampler=sampler, **config["params"])
@@ -84,8 +76,8 @@ class ModelEvaluator(BenchmarkPipeline):
             scaler=config["scaler"],
             balancing_name=config["sampler"],
             training_time=training_duration,
-            predictions=y_pred,
-            y_proba=y_proba
+            predictions=y_pred.tolist(),
+            y_proba=y_proba.tolist()
 
         )
 
@@ -103,6 +95,8 @@ class ModelEvaluator(BenchmarkPipeline):
         )
 
     def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
+        np.set_printoptions(threshold=np.inf)
+
         configs = self.get_configs(results_df)
         X_train, y_train = self.prepare_data(train_data)
         X_valid, _ = self.prepare_data(valid_data)

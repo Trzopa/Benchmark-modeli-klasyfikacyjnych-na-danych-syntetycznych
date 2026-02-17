@@ -1,7 +1,6 @@
 import time
 import warnings
 from itertools import product
-from pathlib import Path
 
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -21,7 +20,6 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import load_config, load_data
 from utils import save_params_model_with_best_params
 
 set_config(transform_output="pandas")
@@ -45,15 +43,12 @@ class BenchmarkPipeline:
         param_distributions = {}
 
         for param_name, spec in model_config.items():
-            # 1. Proste listy
             if isinstance(spec, list):
                 param_distributions[param_name] = spec
 
-            # 2. NOWOŚĆ: Obsługa "value" (np. random_state: value: 42)
             elif isinstance(spec, dict) and "value" in spec:
                 param_distributions[param_name] = [spec["value"]]
 
-            # 3. Rozkłady statystyczne
             elif isinstance(spec, dict) and "distribution" in spec:
                 dist_name = spec["distribution"]
                 dist_cls = self.__get_dist_params()[dist_name]
@@ -99,7 +94,6 @@ class BenchmarkPipeline:
             else:
                 raise ValueError(f"Unknown imputation strategy: {strategy}")
 
-        # Build list of transformers based on configured strategies
         transformers = []
         if knn_cols:
             transformers.append(("knn_impute", KNNImputer(n_neighbors=n_neighbors), knn_cols))
@@ -155,6 +149,7 @@ class BenchmarkPipeline:
 
         pipe.set_params(scaler=scaler_obj, sampler=sampler_obj)
         param_distributions = self.__get_param_distribution(model_file, model_name)
+        # TODO czy nie warto cos tutaj pozmienian
         scaler_name = type(scaler_obj).__name__ if scaler_obj != "passthrough" else "passthrough"
         sampler_name = type(sampler_obj).__name__ if sampler_obj != "passthrough" else "passthrough"
 
