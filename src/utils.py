@@ -16,13 +16,13 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def save_params_model_with_best_params(model, scaler, balancing_name, training_time, cv_roc_auc, best_params):
+def save_params_model_with_best_params(model, scaler, balancing_name, training_time, f1, best_params):
     result = {
         "model": model,
         "scaler": scaler,
         "balancing_name": balancing_name,
         "training_time": training_time,
-        "cv_roc_auc": cv_roc_auc,
+        "f1": f1,
         "best_params": best_params,
     }
 
