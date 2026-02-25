@@ -3,9 +3,10 @@ pandas
 scipy
 joblib
 pyyaml
-
+seaborn
+matplotlib
 scikit-learn
 imbalanced-learn
-
 lightgbm
 xgboost
+
