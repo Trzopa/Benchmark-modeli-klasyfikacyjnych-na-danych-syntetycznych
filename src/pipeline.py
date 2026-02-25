@@ -143,13 +143,12 @@ class BenchmarkPipeline:
 
     def run_pipeline(self, data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj, ):
         # Prepare features and target
-        X, y = self.__prepare_data(data)
+        X, y = self.prepare_data(data)
 
         pipe = self.create_pipeline(model_name, preprocessing_file)
 
         pipe.set_params(scaler=scaler_obj, sampler=sampler_obj)
         param_distributions = self.__get_param_distribution(model_file, model_name)
-        # TODO czy nie warto cos tutaj pozmienian
         scaler_name = type(scaler_obj).__name__ if scaler_obj != "passthrough" else "passthrough"
         sampler_name = type(sampler_obj).__name__ if sampler_obj != "passthrough" else "passthrough"
 
@@ -159,7 +158,7 @@ class BenchmarkPipeline:
             estimator=pipe,
             param_distributions=param_distributions,
             n_iter=100,
-            scoring="roc_auc",
+            scoring="f1",
             cv=cv,
             n_jobs=-1,
             verbose=0,
@@ -174,7 +173,7 @@ class BenchmarkPipeline:
             scaler=scaler_name,
             balancing_name=sampler_name,
             training_time=train_time,
-            cv_roc_auc=search.best_score_,
+            f1=search.best_score_,
             best_params=search.best_params_,
         )
         return [result]
