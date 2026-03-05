@@ -31,6 +31,7 @@ class BenchmarkPipeline:
     def __init__(self, random_state=42):
         self.random_state = random_state
 
+
     def __get_dist_params(self):
         return {
             "randint": randint,
@@ -186,7 +187,7 @@ class BenchmarkPipeline:
         combinations = list(product(all_model_names, grid_options["scaler"], grid_options["sampler"]))
 
         for model_name, scaler_obj, sampler_obj in combinations:
-            print(f"Przetwarzanie {len(all_results) + 1}/96: {model_name}")
+            print(f"Preprocessing {len(all_results) + 1}/96: {model_name}")
 
             result = self.run_pipeline(
                 data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj

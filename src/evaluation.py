@@ -12,11 +12,6 @@ from utils import save_params_model_with_evaluate_valid_data, \
 from pipeline import BenchmarkPipeline
 
 
-# TODO: zastanowic sie czy mozna usunac funkcji scalerow i saplerow aby byla tylko jedna
-# TODO: zastanowic sie czy mozna nie powielac metody __prepare_data
-# TODO: czy dobry mam kod
-
-
 class ModelEvaluator(BenchmarkPipeline):
     def __init__(self):
         super().__init__()
@@ -95,8 +90,6 @@ class ModelEvaluator(BenchmarkPipeline):
         )
 
     def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
-        np.set_printoptions(threshold=np.inf)
-
         configs = self.get_configs(results_df)
         X_train, y_train = self.prepare_data(train_data)
         X_valid, _ = self.prepare_data(valid_data)
