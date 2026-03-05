@@ -4,7 +4,7 @@ from evaluation import ModelEvaluator
 
 root = Path.cwd().parent
 
-data = load_data(f"{root}/results/metrics/results_20260212_222530.csv")
+data = load_data(f"{root}/results/metrics/results_20260224_222500.csv")
 data_train = load_data(f"{root}/data/train.csv")
 data_test = load_data(f"{root}/data/test.csv")
 data_valid = load_data(f"{root}/data/valid.csv")
