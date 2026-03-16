@@ -1,8 +1,6 @@
 import time
 import warnings
 from itertools import product
-from pprint import pprint
-
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -22,6 +20,7 @@ from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 from utils import save_params_model_with_best_params, to_dataframe
+from config.params_distribution_models import param_distributions, scalers, samplers
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -67,31 +66,6 @@ class Benchmark:
         self.preprocessing_file = preprocessing_file
         self.save_path = save_path
 
-    def __get_param_distribution(self, model_name):
-        model_config = self.model_file[model_name]
-        param_distributions = {}
-
-        for param_name, spec in model_config.items():
-            if isinstance(spec, list):
-                param_distributions[param_name] = spec
-
-            elif isinstance(spec, dict) and "value" in spec:
-                param_distributions[param_name] = [spec["value"]]
-
-            elif isinstance(spec, dict) and "distribution" in spec:
-                dist_name = spec["distribution"]
-                dist_cls = DIST_PARAM[dist_name]
-
-                if dist_name == "randint":
-                    param_distributions[param_name] = dist_cls(low=spec["low"], high=spec["high"])
-                elif dist_name == "uniform":
-                    param_distributions[param_name] = dist_cls(loc=spec["loc"], scale=spec["scale"])
-                elif dist_name == "loguniform":
-                    param_distributions[param_name] = dist_cls(spec["low"], spec["high"])
-        # TODO:
-        #  model = LogisticRegression() - na przykład
-        #  gdzieć tutaj dodac  param_distributions['clf'] = model
-        return param_distributions
 
     def __build_preprocessor(self, n_neighbors=5):
         knn_cols = []
@@ -119,17 +93,15 @@ class Benchmark:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
-    def create_pipeline(self, model_name):
-        model = MODELS[model_name]
+    def create_pipeline(self):
         preprocessor = self.__build_preprocessor()
 
-        # Pipeline steps: preprocessing -> scaling -> sampling -> classification
-        # 'passthrough' placeholders will be replaced during hyperparameter search
         pipe = ImbPipeline([
             ('preprocessor', preprocessor),
             ('scaler', 'passthrough'),
             ('sampler', 'passthrough'),
-            ('clf', model) # <--- TODO: dać passthrough i podać wiele modeli zamiast jednego (zamiast model podaj MODELS)
+            ('clf', 'passthrough')
+            # <--- TODO: dać passthrough i podać wiele modeli zamiast jednego (zamiast model podaj MODELS)
         ])
         return pipe
 
@@ -142,28 +114,20 @@ class Benchmark:
         else:
             return self.data, None
 
-    def run_pipeline(self, model_name, scaler_obj, sampler_obj):
+    def run_pipeline(self):
         # Prepare features and target
         X, y = self.prepare_data()
 
-        pipe = self.create_pipeline(model_name)
+        pipe = self.create_pipeline()
 
-        pipe.set_params(scaler=scaler_obj, sampler=sampler_obj)
-        param_distributions = self.__get_param_distribution(model_name)
         # TODO: test and remove this
-        print(100*'*')
-        pprint(param_distributions)
-        print(100*'*')
-        return None
-        scaler_name = type(scaler_obj).__name__ if scaler_obj != "passthrough" else "passthrough"
-        sampler_name = type(sampler_obj).__name__ if sampler_obj != "passthrough" else "passthrough"
 
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
 
         search = RandomizedSearchCV(
             estimator=pipe,
-            param_distributions=param_distributions, # TODO: może tutaj trzeba podać??
-            n_iter=100,
+            param_distributions=param_distributions,  # TODO: może tutaj trzeba podać??
+            n_iter=3,
             scoring="f1",
             cv=cv,
             n_jobs=-1,
@@ -175,14 +139,14 @@ class Benchmark:
         train_time = time.time() - start_time
 
         result = save_params_model_with_best_params(
-            model=model_name,
-            scaler=scaler_name,
-            balancing_name=sampler_name,
+            model=type(search.best_estimator_.named_steps["clf"]).__name__,
+            scaler=type(search.best_estimator_.named_steps["scaler"]).__name__,
+            balancing_name=type(search.best_estimator_.named_steps["sampler"]).__name__,
             training_time=train_time,
             f1=search.best_score_,
             best_params=search.best_params_,
         )
-        return [result]
+        return result
 
     def run(self):
         all_model_names = list(MODELS.keys())
@@ -191,13 +155,21 @@ class Benchmark:
         combinations = list(product(all_model_names, SCALERS, SAMPLERS))
 
         all_results = []
-        for model_name, scaler_obj, sampler_obj in combinations: # pozbyć się tej pę
-            print(f"Preprocessing {len(all_results) + 1}/96: {model_name}")
+        print(f"Preprocessing {len(all_results) + 1}/96: {model_name}")
 
-            result = self.run_pipeline(
-                model_name, scaler_obj, sampler_obj
-            )
-            all_results.extend(result)
+        result = self.run_pipeline()
+        all_results.extend(result)
 
-        to_dataframe(all_results, self.save_path)
+    to_dataframe(all_results, self.save_path)
 
+
+if __name__ == '__main__':
+    from pathlib import Path
+    from utils import load_config, load_data
+
+    root = Path(__file__).parent
+    model_file = load_config(f"{root}/config/model.yaml")
+    preprocessing_file = load_config(f"{root}/config/preprocessing.yaml")
+    data = load_data(f"{root}/../data/train.csv")
+    bench = Benchmark(data, model_file, preprocessing_file, save_path="metrics")
+    bench.run_pipeline()
