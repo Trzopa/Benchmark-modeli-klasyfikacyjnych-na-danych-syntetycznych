@@ -9,10 +9,10 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from utils import save_params_model_with_evaluate_valid_data, \
     save_params_model_with_evaluate_test_data
-from pipeline import BenchmarkPipeline
+from pipeline import Benchmark
 
-
-class ModelEvaluator(BenchmarkPipeline):
+# TODO: do not inherit from any class here
+class ModelEvaluator(Benchmark):
     def __init__(self):
         super().__init__()
 
@@ -111,3 +111,43 @@ class ModelEvaluator(BenchmarkPipeline):
             results.append(result)
 
         return results
+
+# def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
+#     configs = self.get_configs(results_df)
+#     X_train, y_train = self.prepare_data(train_data)
+#     X_valid, _ = self.prepare_data(valid_data)
+#
+#     results = []
+#     total = len(configs)
+#
+#     for i, config in enumerate(configs, 1):
+#         print(f"[VALID] {i}/{total} | Model={config['model']} | Scaler={config['scaler']} | Sampler={config['sampler']}")
+#
+#         y_pred, y_proba, duration = self.__train_and_predict(
+#             config, X_train, y_train, X_valid, preprocessing_file
+#         )
+#
+#         result = self.__evaluate_valid(y_pred, y_proba, config, duration)
+#         results.append(result)
+#
+#     return results
+#
+# def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
+#     configs = self.get_configs(results_df)
+#     X_train, y_train = self.prepare_data(train_data)
+#     X_test, y_test = self.prepare_data(test_data)
+#
+#     results = []
+#     total = len(configs)
+#
+#     for i, config in enumerate(configs, 1):
+#         print(f"[TEST] {i}/{total} | Model={config['model']} | Scaler={config['scaler']} | Sampler={config['sampler']}")
+#
+#         y_pred, y_proba, duration = self.__train_and_predict(
+#             config, X_train, y_train, X_test, preprocessing_file
+#         )
+#
+#         result = self.__evaluate_test(y_test, y_pred, y_proba, config, duration)
+#         results.append(result)
+#
+#     return results

@@ -1,6 +1,7 @@
 import time
 import warnings
 from itertools import product
+from pprint import pprint
 
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -20,27 +21,54 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model_with_best_params
+from utils import save_params_model_with_best_params, to_dataframe
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
 
+RANDOM_STATE = 42
 
-class BenchmarkPipeline:
-    def __init__(self, random_state=42):
-        self.random_state = random_state
+DIST_PARAM = {
+    "randint": randint,
+    "uniform": uniform,
+    "loguniform": loguniform,
+}
+
+MODELS = {
+    "LogisticRegression": LogisticRegression(),
+    "KNeighborsClassifier": KNeighborsClassifier(),
+    "SVC": SVC(),
+    "NaiveBayes": GaussianNB(),
+    "DecisionTreeClassifier": DecisionTreeClassifier(),
+    "RandomForestClassifier": RandomForestClassifier(),
+    "XGBClassifier": XGBClassifier(),
+    "LGBMClassifier": LGBMClassifier(),
+}
+
+SCALERS = [
+    "passthrough",  # No scaling
+    StandardScaler(),
+    MinMaxScaler(),
+]
+
+SAMPLERS = [
+    "passthrough",  # No resampling
+    RandomOverSampler(random_state=RANDOM_STATE),
+    RandomUnderSampler(random_state=RANDOM_STATE),
+    SMOTE(random_state=RANDOM_STATE),
+]
 
 
-    def __get_dist_params(self):
-        return {
-            "randint": randint,
-            "uniform": uniform,
-            "loguniform": loguniform,
-        }
+class Benchmark:
+    def __init__(self, data, model_file, preprocessing_file, save_path):
+        self.data = data
+        self.model_file = model_file
+        self.preprocessing_file = preprocessing_file
+        self.save_path = save_path
 
-    def __get_param_distribution(self, config_name, model_name):
-        model_config = config_name[model_name]
+    def __get_param_distribution(self, model_name):
+        model_config = self.model_file[model_name]
         param_distributions = {}
 
         for param_name, spec in model_config.items():
@@ -52,7 +80,7 @@ class BenchmarkPipeline:
 
             elif isinstance(spec, dict) and "distribution" in spec:
                 dist_name = spec["distribution"]
-                dist_cls = self.__get_dist_params()[dist_name]
+                dist_cls = DIST_PARAM[dist_name]
 
                 if dist_name == "randint":
                     param_distributions[param_name] = dist_cls(low=spec["low"], high=spec["high"])
@@ -60,32 +88,18 @@ class BenchmarkPipeline:
                     param_distributions[param_name] = dist_cls(loc=spec["loc"], scale=spec["scale"])
                 elif dist_name == "loguniform":
                     param_distributions[param_name] = dist_cls(spec["low"], spec["high"])
-
+        # TODO:
+        #  model = LogisticRegression() - na przykład
+        #  gdzieć tutaj dodac  param_distributions['clf'] = model
         return param_distributions
 
-    def __get_model(self, model_name=None):
-        models = {
-            "LogisticRegression": LogisticRegression(),
-            "KNeighborsClassifier": KNeighborsClassifier(),
-            "SVC": SVC(probability=True),
-            "NaiveBayes": GaussianNB(),
-            "DecisionTreeClassifier": DecisionTreeClassifier(),
-            "RandomForestClassifier": RandomForestClassifier(),
-            "XGBClassifier": XGBClassifier(),
-            "LGBMClassifier": LGBMClassifier(),
-        }
-
-        if model_name is None:
-            return models
-        return models.get(model_name)
-
-    def __build_preprocessor(self, preprocessing_file, n_neighbors=5):
+    def __build_preprocessor(self, n_neighbors=5):
         knn_cols = []
         mean_cols = []
         drop_cols = []
 
         # Categorize columns by their imputation strategy
-        for col, strategy in preprocessing_file.items():
+        for col, strategy in self.preprocessing_file.items():
             if strategy == 'knn':
                 knn_cols.append(col)
             elif strategy == 'mean':
@@ -105,9 +119,9 @@ class BenchmarkPipeline:
 
         return ColumnTransformer(transformers=transformers, remainder='passthrough')
 
-    def create_pipeline(self, model_name, preprocessing_file):
-        model = self.__get_model(model_name)
-        preprocessor = self.__build_preprocessor(preprocessing_file)
+    def create_pipeline(self, model_name):
+        model = MODELS[model_name]
+        preprocessor = self.__build_preprocessor()
 
         # Pipeline steps: preprocessing -> scaling -> sampling -> classification
         # 'passthrough' placeholders will be replaced during hyperparameter search
@@ -115,41 +129,32 @@ class BenchmarkPipeline:
             ('preprocessor', preprocessor),
             ('scaler', 'passthrough'),
             ('sampler', 'passthrough'),
-            ('clf', model)
+            ('clf', model) # <--- TODO: dać passthrough i podać wiele modeli zamiast jednego (zamiast model podaj MODELS)
         ])
         return pipe
 
-    def prepare_data(self, data):
-        if "target" in data.columns:
-            X = data.drop(columns="target")
-            y = data["target"]
+    # move to utils
+    def prepare_data(self):
+        if "target" in self.data.columns:
+            X = self.data.drop(columns="target")
+            y = self.data["target"]
             return X, y
         else:
-            return data, None
+            return self.data, None
 
-    def __get_scalers_and_samplers_grid(self):
-        return {
-            "scaler": [
-                "passthrough",  # No scaling
-                StandardScaler(),
-                MinMaxScaler(),
-            ],
-            "sampler": [
-                "passthrough",  # No resampling
-                RandomOverSampler(random_state=self.random_state),
-                RandomUnderSampler(random_state=self.random_state),
-                SMOTE(random_state=self.random_state),
-            ]
-        }
-
-    def run_pipeline(self, data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj, ):
+    def run_pipeline(self, model_name, scaler_obj, sampler_obj):
         # Prepare features and target
-        X, y = self.prepare_data(data)
+        X, y = self.prepare_data()
 
-        pipe = self.create_pipeline(model_name, preprocessing_file)
+        pipe = self.create_pipeline(model_name)
 
         pipe.set_params(scaler=scaler_obj, sampler=sampler_obj)
-        param_distributions = self.__get_param_distribution(model_file, model_name)
+        param_distributions = self.__get_param_distribution(model_name)
+        # TODO: test and remove this
+        print(100*'*')
+        pprint(param_distributions)
+        print(100*'*')
+        return None
         scaler_name = type(scaler_obj).__name__ if scaler_obj != "passthrough" else "passthrough"
         sampler_name = type(sampler_obj).__name__ if sampler_obj != "passthrough" else "passthrough"
 
@@ -157,7 +162,7 @@ class BenchmarkPipeline:
 
         search = RandomizedSearchCV(
             estimator=pipe,
-            param_distributions=param_distributions,
+            param_distributions=param_distributions, # TODO: może tutaj trzeba podać??
             n_iter=100,
             scoring="f1",
             cv=cv,
@@ -179,19 +184,20 @@ class BenchmarkPipeline:
         )
         return [result]
 
-    def run_all_models(self, data, model_file, preprocessing_file):
-        all_model_names = list(self.__get_model().keys())
-        grid_options = self.__get_scalers_and_samplers_grid()
+    def run(self):
+        all_model_names = list(MODELS.keys())
+        # TODO: read about SOLID design pattern
+
+        combinations = list(product(all_model_names, SCALERS, SAMPLERS))
 
         all_results = []
-        combinations = list(product(all_model_names, grid_options["scaler"], grid_options["sampler"]))
-
-        for model_name, scaler_obj, sampler_obj in combinations:
+        for model_name, scaler_obj, sampler_obj in combinations: # pozbyć się tej pę
             print(f"Preprocessing {len(all_results) + 1}/96: {model_name}")
 
             result = self.run_pipeline(
-                data, model_name, model_file, preprocessing_file, scaler_obj, sampler_obj
+                model_name, scaler_obj, sampler_obj
             )
             all_results.extend(result)
 
-        return all_results
+        to_dataframe(all_results, self.save_path)
+

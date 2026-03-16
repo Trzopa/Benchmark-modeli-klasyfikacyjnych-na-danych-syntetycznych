@@ -1,4 +1,16 @@
 # === Define hyperparameter search grids ===
+# TODO: przekształć to na słownik pythonowy plik pythonowy który zawiera ten config w formie słownika.
+# zobacz w RandomSearchCV jaki jest format tego słownika
+
+
+
+#{'clf__C': <scipy.stats._distn_infrastructure.rv_continuous_frozen object at 0x10fadf620>,
+# 'clf__max_iter': <scipy.stats._distn_infrastructure.rv_discrete_frozen object at 0x10fadf770>,
+# 'clf__penalty': ['l2', 'l1'],
+# 'clf__random_state': [42],
+# 'clf__solver': ['saga', 'liblinear']
+# 'scaler': [StandardScale(), MinMaxScaler()]
+#}
 
 LogisticRegression:
   clf__random_state:
