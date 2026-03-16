@@ -151,16 +151,15 @@ class Benchmark:
     def run(self):
         all_model_names = list(MODELS.keys())
         # TODO: read about SOLID design pattern
-
         combinations = list(product(all_model_names, SCALERS, SAMPLERS))
-
         all_results = []
-        print(f"Preprocessing {len(all_results) + 1}/96: {model_name}")
 
-        result = self.run_pipeline()
-        all_results.extend(result)
+        for i, (model_name, scaler, sampler) in enumerate(combinations, start=1):
+            print(f"Processing {i}/{len(combinations)} : {model_name} | {scaler} | {sampler}")
+            result = self.run_pipeline()
+            all_results.extend(result)
 
-    to_dataframe(all_results, self.save_path)
+        to_dataframe(all_results, self.save_path)
 
 
 if __name__ == '__main__':
@@ -172,4 +171,4 @@ if __name__ == '__main__':
     preprocessing_file = load_config(f"{root}/config/preprocessing.yaml")
     data = load_data(f"{root}/../data/train.csv")
     bench = Benchmark(data, model_file, preprocessing_file, save_path="metrics")
-    bench.run_pipeline()
+    bench.run()
