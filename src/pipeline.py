@@ -20,7 +20,7 @@ from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 from utils import save_params_model_with_best_params, to_dataframe
-from config.params_distribution_models import param_distributions, scalers, samplers
+from config.experiment_config import param_distributions, scalers, samplers
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -60,12 +60,10 @@ SAMPLERS = [
 
 
 class Benchmark:
-    def __init__(self, data, model_file, preprocessing_file, save_path):
+    def __init__(self, data, preprocessing_file, save_path):
         self.data = data
-        self.model_file = model_file
         self.preprocessing_file = preprocessing_file
         self.save_path = save_path
-
 
     def __build_preprocessor(self, n_neighbors=5):
         knn_cols = []
@@ -114,20 +112,22 @@ class Benchmark:
         else:
             return self.data, None
 
-    def run_pipeline(self):
-        # Prepare features and target
+    def run_pipeline(self, model_name, scaler, sampler):
         X, y = self.prepare_data()
 
         pipe = self.create_pipeline()
-
-        # TODO: test and remove this
+        pipe.set_params(
+            clf=MODELS[model_name],
+            scaler=scaler,
+            sampler=sampler
+        )
 
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
 
         search = RandomizedSearchCV(
             estimator=pipe,
             param_distributions=param_distributions,  # TODO: może tutaj trzeba podać??
-            n_iter=3,
+            n_iter=1,
             scoring="f1",
             cv=cv,
             n_jobs=-1,
@@ -156,7 +156,7 @@ class Benchmark:
 
         for i, (model_name, scaler, sampler) in enumerate(combinations, start=1):
             print(f"Processing {i}/{len(combinations)} : {model_name} | {scaler} | {sampler}")
-            result = self.run_pipeline()
+            result = self.run_pipeline(model_name, scaler, sampler)
             all_results.extend(result)
 
         to_dataframe(all_results, self.save_path)
@@ -167,8 +167,7 @@ if __name__ == '__main__':
     from utils import load_config, load_data
 
     root = Path(__file__).parent
-    model_file = load_config(f"{root}/config/model.yaml")
     preprocessing_file = load_config(f"{root}/config/preprocessing.yaml")
     data = load_data(f"{root}/../data/train.csv")
-    bench = Benchmark(data, model_file, preprocessing_file, save_path="metrics")
+    bench = Benchmark(data, preprocessing_file, save_path="metrics")
     bench.run()
