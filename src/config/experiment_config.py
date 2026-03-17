@@ -1,36 +1,18 @@
-from imblearn.over_sampling import SMOTE, RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
 from lightgbm import LGBMClassifier
 from scipy.stats import randint, uniform, loguniform
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from sklearn.naive_bayes import GaussianNB
+
 RANDOM_STATE = 42
-scalers = [
-    "passthrough",  # No scaling
-    StandardScaler(),
-    MinMaxScaler(),
-]
 
-samplers = [
-    "passthrough",  # No resampling
-    RandomOverSampler(random_state=RANDOM_STATE),
-    RandomUnderSampler(random_state=RANDOM_STATE),
-    SMOTE(random_state=RANDOM_STATE),
-]
+param_distributions = {
 
-param_distributions = [
-
-    {
-        "clf": [LogisticRegression()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "LogisticRegression": {
         "clf__random_state": [RANDOM_STATE],
         "clf__C": uniform(0.1, 10),
         "clf__penalty": ["l1", "l2"],
@@ -38,11 +20,7 @@ param_distributions = [
         "clf__max_iter": randint(500, 2000),
     },
 
-    {
-        "clf": [DecisionTreeClassifier()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "DecisionTreeClassifier": {
         "clf__random_state": [RANDOM_STATE],
         "clf__criterion": ["gini", "entropy", "log_loss"],
         "clf__max_depth": randint(3, 20),
@@ -51,11 +29,7 @@ param_distributions = [
         "clf__max_features": ["sqrt", "log2"],
     },
 
-    {
-        "clf": [RandomForestClassifier()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "RandomForestClassifier": {
         "clf__random_state": [RANDOM_STATE],
         "clf__n_estimators": randint(20, 200),
         "clf__criterion": ["gini", "entropy", "log_loss"],
@@ -65,11 +39,7 @@ param_distributions = [
         "clf__max_features": ["sqrt", "log2"],
     },
 
-    {
-        "clf": [XGBClassifier()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "XGBClassifier": {
         "clf__random_state": [RANDOM_STATE],
         "clf__n_estimators": randint(50, 500),
         "clf__max_depth": randint(3, 20),
@@ -81,11 +51,7 @@ param_distributions = [
         "clf__reg_lambda": uniform(0, 1),
     },
 
-    {
-        "clf": [LGBMClassifier()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "LGBMClassifier": {
         "clf__verbose": [-1],
         "clf__random_state": [RANDOM_STATE],
         "clf__n_estimators": randint(100, 500),
@@ -95,17 +61,11 @@ param_distributions = [
         "clf__min_split_gain": uniform(0, 0.02),
     },
 
-    {
-        "clf": [GaussianNB()],
-        "scaler": scalers,
-        "sampler": samplers
+    "NaiveBayes": {
+        # brak hiperparametrów → RandomSearch i tak zadziała
     },
 
-    {
-        "clf": [SVC()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "SVC": {
         "clf__probability": [True],
         "clf__random_state": [RANDOM_STATE],
         "clf__C": uniform(0.1, 10),
@@ -114,11 +74,7 @@ param_distributions = [
         "clf__cache_size": [1000],
     },
 
-    {
-        "clf": [KNeighborsClassifier()],
-        "scaler": scalers,
-        "sampler": samplers,
-
+    "KNeighborsClassifier": {
         "clf__n_neighbors": randint(3, 15),
         "clf__weights": ["uniform", "distance"],
         "clf__metric": ["euclidean", "manhattan"],
@@ -126,4 +82,4 @@ param_distributions = [
         "clf__leaf_size": randint(10, 100),
     }
 
-]
+}

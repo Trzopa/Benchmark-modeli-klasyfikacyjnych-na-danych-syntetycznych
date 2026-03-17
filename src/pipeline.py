@@ -1,3 +1,4 @@
+import copy
 import time
 import warnings
 from itertools import product
@@ -20,19 +21,13 @@ from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 from utils import save_params_model_with_best_params, to_dataframe
-from config.experiment_config import param_distributions, scalers, samplers
+from config.experiment_config import param_distributions
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
 
 RANDOM_STATE = 42
-
-DIST_PARAM = {
-    "randint": randint,
-    "uniform": uniform,
-    "loguniform": loguniform,
-}
 
 MODELS = {
     "LogisticRegression": LogisticRegression(),
@@ -123,10 +118,9 @@ class Benchmark:
         )
 
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
-
         search = RandomizedSearchCV(
             estimator=pipe,
-            param_distributions=param_distributions,  # TODO: może tutaj trzeba podać??
+            param_distributions=param_distributions[model_name],  # TODO: może tutaj trzeba podać??
             n_iter=1,
             scoring="f1",
             cv=cv,
@@ -139,12 +133,12 @@ class Benchmark:
         train_time = time.time() - start_time
 
         result = save_params_model_with_best_params(
-            model=type(search.best_estimator_.named_steps["clf"]).__name__,
-            scaler=type(search.best_estimator_.named_steps["scaler"]).__name__,
-            balancing_name=type(search.best_estimator_.named_steps["sampler"]).__name__,
+            model=model_name,
+            scaler=scaler if scaler == "passthrough" else type(scaler).__name__,
+            balancing_name=sampler if sampler == "passthrough" else type(sampler).__name__,
             training_time=train_time,
             f1=search.best_score_,
-            best_params=search.best_params_,
+            best_params=search.best_params_
         )
         return result
 
@@ -157,7 +151,7 @@ class Benchmark:
         for i, (model_name, scaler, sampler) in enumerate(combinations, start=1):
             print(f"Processing {i}/{len(combinations)} : {model_name} | {scaler} | {sampler}")
             result = self.run_pipeline(model_name, scaler, sampler)
-            all_results.extend(result)
+            all_results.append(result)
 
         to_dataframe(all_results, self.save_path)
 
@@ -170,4 +164,5 @@ if __name__ == '__main__':
     preprocessing_file = load_config(f"{root}/config/preprocessing.yaml")
     data = load_data(f"{root}/../data/train.csv")
     bench = Benchmark(data, preprocessing_file, save_path="metrics")
+    # bench.run_pipeline("LogisticRegression", "passthrough", "passthrough")
     bench.run()
