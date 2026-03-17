@@ -1,58 +1,18 @@
-import copy
 import time
 import warnings
 from itertools import product
-from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
-from imblearn.under_sampling import RandomUnderSampler
-from joblib import Parallel, delayed
-from lightgbm import LGBMClassifier
-from scipy.stats import randint, uniform, loguniform
 from sklearn import set_config
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-
-from utils import save_params_model_with_best_params, to_dataframe, prepare_data
+from utils import save_params_model_with_best_params, to_dataframe, prepare_data, MODELS, SCALERS, SAMPLERS
 from config.experiment_config import param_distributions
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
 
-RANDOM_STATE = 42
-
-MODELS = {
-    "LogisticRegression": LogisticRegression(),
-    "KNeighborsClassifier": KNeighborsClassifier(),
-    "SVC": SVC(),
-    "NaiveBayes": GaussianNB(),
-    "DecisionTreeClassifier": DecisionTreeClassifier(),
-    "RandomForestClassifier": RandomForestClassifier(),
-    "XGBClassifier": XGBClassifier(),
-    "LGBMClassifier": LGBMClassifier(),
-}
-
-SCALERS = [
-    "passthrough",  # No scaling
-    StandardScaler(),
-    MinMaxScaler(),
-]
-
-SAMPLERS = [
-    "passthrough",  # No resampling
-    RandomOverSampler(random_state=RANDOM_STATE),
-    RandomUnderSampler(random_state=RANDOM_STATE),
-    SMOTE(random_state=RANDOM_STATE),
-]
 
 
 class Benchmark:

@@ -5,6 +5,43 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import yaml
+from imblearn.over_sampling import RandomOverSampler, SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+
+RANDOM_STATE = 42
+
+MODELS = {
+    "LogisticRegression": LogisticRegression(),
+    "KNeighborsClassifier": KNeighborsClassifier(),
+    "SVC": SVC(),
+    "NaiveBayes": GaussianNB(),
+    "DecisionTreeClassifier": DecisionTreeClassifier(),
+    "RandomForestClassifier": RandomForestClassifier(),
+    "XGBClassifier": XGBClassifier(),
+    "LGBMClassifier": LGBMClassifier(),
+}
+
+SCALERS = [
+    "passthrough",  # No scaling
+    StandardScaler(),
+    MinMaxScaler(),
+]
+
+SAMPLERS = [
+    "passthrough",  # No resampling
+    RandomOverSampler(random_state=RANDOM_STATE),
+    RandomUnderSampler(random_state=RANDOM_STATE),
+    SMOTE(random_state=RANDOM_STATE),
+]
 
 
 def load_data(path):
