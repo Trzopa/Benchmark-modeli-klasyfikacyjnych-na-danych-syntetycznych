@@ -5,6 +5,7 @@ from itertools import product
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.under_sampling import RandomUnderSampler
+from joblib import Parallel, delayed
 from lightgbm import LGBMClassifier
 from scipy.stats import randint, uniform, loguniform
 from sklearn import set_config
@@ -20,7 +21,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from utils import save_params_model_with_best_params, to_dataframe
+from utils import save_params_model_with_best_params, to_dataframe, prepare_data
 from config.experiment_config import param_distributions
 
 set_config(transform_output="pandas")
@@ -94,21 +95,14 @@ class Benchmark:
             ('scaler', 'passthrough'),
             ('sampler', 'passthrough'),
             ('clf', 'passthrough')
-            # <--- TODO: dać passthrough i podać wiele modeli zamiast jednego (zamiast model podaj MODELS)
         ])
         return pipe
 
     # move to utils
-    def prepare_data(self):
-        if "target" in self.data.columns:
-            X = self.data.drop(columns="target")
-            y = self.data["target"]
-            return X, y
-        else:
-            return self.data, None
+
 
     def run_pipeline(self, model_name, scaler, sampler):
-        X, y = self.prepare_data()
+        X, y = prepare_data()
 
         pipe = self.create_pipeline()
         pipe.set_params(
@@ -120,8 +114,8 @@ class Benchmark:
         cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
         search = RandomizedSearchCV(
             estimator=pipe,
-            param_distributions=param_distributions[model_name],  # TODO: może tutaj trzeba podać??
-            n_iter=1,
+            param_distributions=param_distributions[model_name],
+            n_iter=100,
             scoring="f1",
             cv=cv,
             n_jobs=-1,
