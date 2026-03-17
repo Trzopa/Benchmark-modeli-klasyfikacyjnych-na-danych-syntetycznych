@@ -16,6 +16,15 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
+def prepare_data(self):
+    if "target" in self.data.columns:
+        X = self.data.drop(columns="target")
+        y = self.data["target"]
+        return X, y
+    else:
+        return self.data, None
+
+
 def save_params_model_with_best_params(model, scaler, balancing_name, training_time, f1, best_params):
     result = {
         "model": model,
