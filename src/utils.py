@@ -8,7 +8,9 @@ import yaml
 from imblearn.over_sampling import RandomOverSampler, SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from lightgbm import LGBMClassifier
+from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -16,6 +18,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
+from imblearn.pipeline import Pipeline as ImbPipeline
 
 RANDOM_STATE = 42
 
@@ -51,15 +54,6 @@ def load_data(path):
 def load_config(path):
     with open(path, "r") as f:
         return yaml.safe_load(f)
-
-
-def prepare_data(self):
-    if "target" in self.data.columns:
-        X = self.data.drop(columns="target")
-        y = self.data["target"]
-        return X, y
-    else:
-        return self.data, None
 
 
 def save_params_model_with_best_params(model, scaler, balancing_name, training_time, f1, best_params):
@@ -125,3 +119,51 @@ def to_dataframe(results_list, name_folder):
     df.to_csv(file_path, index=False)
     print(f"Saved to: {file_path}")
     return df
+
+
+def prepare_data(data):
+    if "target" in data.columns:
+        X = data.drop(columns="target")
+        y = data["target"]
+        return X, y
+    else:
+        return data, None
+
+
+def build_preprocessor(preprocessing_file, n_neighbors=5):
+    knn_cols = []
+    mean_cols = []
+    drop_cols = []
+
+    # Categorize columns by their imputation strategy
+    for col, strategy in preprocessing_file.items():
+        if strategy == 'knn':
+            knn_cols.append(col)
+        elif strategy == 'mean':
+            mean_cols.append(col)
+        elif strategy == 'delete':
+            drop_cols.append(col)
+        else:
+            raise ValueError(f"Unknown imputation strategy: {strategy}")
+
+    transformers = []
+    if knn_cols:
+        transformers.append(("knn_impute", KNNImputer(n_neighbors=n_neighbors), knn_cols))
+    if mean_cols:
+        transformers.append(("mean_impute", SimpleImputer(strategy="mean"), mean_cols))
+    if drop_cols:
+        transformers.append(("drop_cols", 'drop', drop_cols))
+
+    return ColumnTransformer(transformers=transformers, remainder='passthrough')
+
+
+def create_pipeline(preprocessing_file):
+    preprocessor = build_preprocessor(preprocessing_file)
+
+    pipe = ImbPipeline([
+        ('preprocessor', preprocessor),
+        ('scaler', 'passthrough'),
+        ('sampler', 'passthrough'),
+        ('clf', 'passthrough')
+    ])
+    return pipe
