@@ -1,36 +1,14 @@
-import ast
 import time
 import warnings
 
 from sklearn import set_config
 
 from utils import prepare_data, \
-    MODELS, create_pipeline, SCALERS, SAMPLERS, evaluate_test, evaluate_valid
+    MODELS, create_pipeline, SCALERS, SAMPLERS, evaluate_test, evaluate_valid, get_configs
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
-RANDOM_STATE = 42
-
-
-def __parse_best_params(params_str):
-    clean_str = params_str.replace('np.float64(', '').replace(')', '')
-    return ast.literal_eval(clean_str)
-
-
-def get_configs(results_df):
-    all_configs = []
-    for _, row in results_df.iterrows():
-        params = __parse_best_params(row['best_params'])
-
-        configs = {
-            'model': row['model'],
-            'scaler': row['scaler'],
-            'sampler': row['balancing_name'],
-            'params': params
-        }
-        all_configs.append(configs)
-    return all_configs
 
 
 class ModelEvaluator:
@@ -103,8 +81,6 @@ class ModelEvaluator:
 
             result = evaluate_test(y_test, y_pred, y_proba, config, duration)
             results.append(result)
-
-        return results
 
         return results
 

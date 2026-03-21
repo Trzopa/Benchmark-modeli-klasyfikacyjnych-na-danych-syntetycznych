@@ -1,3 +1,4 @@
+import ast
 import os
 from datetime import datetime
 from pathlib import Path
@@ -168,6 +169,26 @@ def create_pipeline(preprocessing_file):
         ('clf', 'passthrough')
     ])
     return pipe
+
+
+def __parse_best_params(params_str):
+    clean_str = params_str.replace('np.float64(', '').replace(')', '')
+    return ast.literal_eval(clean_str)
+
+
+def get_configs(results_df):
+    all_configs = []
+    for _, row in results_df.iterrows():
+        params = __parse_best_params(row['best_params'])
+
+        configs = {
+            'model': row['model'],
+            'scaler': row['scaler'],
+            'sampler': row['balancing_name'],
+            'params': params
+        }
+        all_configs.append(configs)
+    return all_configs
 
 
 def evaluate_valid(y_pred, y_proba, config, training_duration):
