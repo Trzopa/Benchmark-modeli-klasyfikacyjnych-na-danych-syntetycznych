@@ -19,12 +19,8 @@ class ModelEvaluator:
         self.test_data = test_data
         self.preprocessing_file = preprocessing_file
 
-    def evaluate_to_valid_data(self):
+    def _evaluate(self, X_train, y_train, X_eval, y_eval, evaluate_fn):
         configs = get_configs(self.results_df)
-
-        X_train, y_train = prepare_data(self.train_data)
-        X_valid, _ = prepare_data(self.valid_data)
-
         results = []
 
         for config in configs:
@@ -45,61 +41,31 @@ class ModelEvaluator:
             pipe.fit(X_train, y_train)
             duration = time.time() - start_time
 
-            y_pred = pipe.predict(X_valid)
-            y_proba = pipe.predict_proba(X_valid)[:, 1]
+            y_pred = pipe.predict(X_eval)
 
-            result = evaluate_valid(y_pred, y_proba, config, duration)
+            y_proba = pipe.predict_proba(X_eval)[:, 1]
+
+            result = evaluate_fn(y_eval, y_pred, y_proba, config, duration)
             results.append(result)
 
         return results
+
+    def evaluate_to_valid_data(self):
+        X_train, y_train = prepare_data(self.train_data)
+        X_valid, y_valid = prepare_data(self.valid_data)
+
+        return self._evaluate(
+            X_train, y_train,
+            X_valid, y_valid,
+            evaluate_valid
+        )
 
     def evaluate_to_test_data(self):
-        configs = get_configs(self.results_df)
         X_train, y_train = prepare_data(self.train_data)
         X_test, y_test = prepare_data(self.test_data)
-        results = []
-        for config in configs:
-            pipe = create_pipeline(self.preprocessing_file)
 
-            params = config["params"].copy()
-
-            pipe.steps = [
-                ("preprocessor", pipe.named_steps["preprocessor"]),
-                ("scaler", SCALERS[config["scaler"]]),
-                ("sampler", SAMPLERS[config["sampler"]]),
-                ("clf", MODELS[config["model"]]),
-            ]
-
-            pipe.set_params(**params)
-
-            start_time = time.time()
-            pipe.fit(X_train, y_train)
-            duration = time.time() - start_time
-
-            y_pred = pipe.predict(X_test)
-            y_proba = pipe.predict_proba(X_test)[:, 1]
-
-            result = evaluate_test(y_test, y_pred, y_proba, config, duration)
-            results.append(result)
-
-        return results
-
-
-if __name__ == '__main__':
-    from pathlib import Path
-    from utils import load_data, to_dataframe, load_config
-    from evaluation import ModelEvaluator
-
-    root = Path.cwd().parent
-
-    data = load_data(f"{root}/results/metrics/results_20260224_222500.csv")
-    data_train = load_data(f"{root}/data/train.csv")
-    data_test = load_data(f"{root}/data/test.csv")
-    data_valid = load_data(f"{root}/data/valid.csv")
-    root = Path.cwd().parent
-    preprocessing_file = load_config("config/preprocessing.yaml")
-    b = ModelEvaluator(data_train, data_valid, preprocessing_file, data_test, data)
-    evaluate_valid_data = b.evaluate_to_valid_data()
-    to_dataframe(evaluate_valid_data, "predictions")
-    evaluate_test_data = b.evaluate_to_test_data()
-    to_dataframe(evaluate_test_data, "predictions")
+        return self._evaluate(
+            X_train, y_train,
+            X_test, y_test,
+            evaluate_test
+        )
