@@ -1,9 +1,15 @@
 import ast
 import time
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from utils import save_params_model_with_evaluate_valid_data, save_params_model_with_evaluate_test_data, prepare_data, \
-    MODELS
+import warnings
 
+from sklearn import set_config
+
+from utils import prepare_data, \
+    MODELS, create_pipeline, SCALERS, SAMPLERS, evaluate_test, evaluate_valid
+
+set_config(transform_output="pandas")
+warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
+warnings.filterwarnings("ignore")
 RANDOM_STATE = 42
 
 
@@ -27,71 +33,102 @@ def get_configs(results_df):
     return all_configs
 
 
-def evaluate_valid(y_pred, y_proba, config, training_duration):
-    return save_params_model_with_evaluate_valid_data(
-        model=config["model"],
-        scaler=config["scaler"],
-        balancing_name=config["sampler"],
-        training_time=training_duration,
-        predictions=y_pred.tolist(),
-        y_proba=y_proba.tolist()
-
-    )
-
-
-def evaluate_test(y_test, y_pred, y_proba, config, training_duration):
-    return save_params_model_with_evaluate_test_data(
-        model=config["model"],
-        scaler=config["scaler"],
-        balancing_name=config["sampler"],
-        training_time=training_duration,
-        accuracy_score=accuracy_score(y_test, y_pred),
-        precision_score=precision_score(y_test, y_pred),
-        recall_score=recall_score(y_test, y_pred),
-        f1_score=f1_score(y_test, y_pred),
-        roc_auc_score=roc_auc_score(y_test, y_proba),
-    )
 
 
 class ModelEvaluator:
+    def __init__(self, train_data, valid_data, preprocessing_file, test_data, results_df):
+        self.results_df = results_df
+        self.train_data = train_data
+        self.valid_data = valid_data
+        self.test_data = test_data
+        self.preprocessing_file = preprocessing_file
 
 
-    # def __train_and_predict(self, config, X_train, y_train, X_eval, preprocessing_file):
-    #     scaler = self.__get_transformer_from_name(config["scaler"], "scaler")
-    #     sampler = self.__get_transformer_from_name(config["sampler"], "sampler")
-    #     pipe = self.create_pipeline()
-    #     pipe.set_params(clf=MODELS[model_name], scaler=scaler, sampler=sampler, **config["params"])
-    #
-    #     start_time = time.time()
-    #     pipe.fit(X_train, y_train)
-    #     training_duration = time.time() - start_time
-    #
-    #     y_pred = pipe.predict(X_eval)
-    #     y_proba = pipe.predict_proba(X_eval)[:, 1]
-    #
-    #     return y_pred, y_proba, training_duration
 
-    def evaluate_to_valid_data(self, train_data, valid_data, results_df, preprocessing_file):
-        configs = get_configs(results_df)
-        X_train, y_train = prepare_data(train_data)
-        X_valid, _ = prepare_data(valid_data)
+    def evaluate_to_valid_data(self):
+        configs = get_configs(self.results_df)
+
+        X_train, y_train = prepare_data(self.train_data)
+        X_valid, _ = prepare_data(self.valid_data)
+
         results = []
+
         for config in configs:
-            y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_valid, preprocessing_file)
+            pipe = create_pipeline(self.preprocessing_file)
+
+            params = config["params"].copy()
+
+            pipe.steps = [
+                ("preprocessor", pipe.named_steps["preprocessor"]),
+                ("scaler", SCALERS[config["scaler"]]),
+                ("sampler", SAMPLERS[config["sampler"]]),
+                ("clf", MODELS[config["model"]]),
+            ]
+
+            pipe.set_params(**params)
+
+            start_time = time.time()
+            pipe.fit(X_train, y_train)
+            duration = time.time() - start_time
+
+            y_pred = pipe.predict(X_valid)
+            y_proba = pipe.predict_proba(X_valid)[:, 1]
+
+
             result = evaluate_valid(y_pred, y_proba, config, duration)
             results.append(result)
+
         return results
 
-
-    def evaluate_to_test_data(self, train_data, test_data, results_df, preprocessing_file):
-        configs = get_configs(results_df)
-        X_train, y_train = prepare_data(train_data)
-        X_test, y_test = prepare_data(test_data)
+    def evaluate_to_test_data(self):
+        configs = get_configs(self.results_df)
+        X_train, y_train = prepare_data(self.train_data)
+        X_test, y_test = prepare_data(self.test_data)
         results = []
         for config in configs:
-            y_pred, y_proba, duration = self.__train_and_predict(config, X_train, y_train, X_test, preprocessing_file)
+            pipe = create_pipeline(self.preprocessing_file)
+
+            params = config["params"].copy()
+
+            pipe.steps = [
+                ("preprocessor", pipe.named_steps["preprocessor"]),
+                ("scaler", SCALERS[config["scaler"]]),
+                ("sampler", SAMPLERS[config["sampler"]]),
+                ("clf", MODELS[config["model"]]),
+            ]
+
+            pipe.set_params(**params)
+
+            start_time = time.time()
+            pipe.fit(X_train, y_train)
+            duration = time.time() - start_time
+
+            y_pred = pipe.predict(X_test)
+            y_proba = pipe.predict_proba(X_test)[:, 1]
+
             result = evaluate_test(y_test, y_pred, y_proba, config, duration)
             results.append(result)
 
         return results
-    # TODO dodać printa
+
+        return results
+
+
+if __name__ == '__main__':
+    from pathlib import Path
+    from utils import load_data, to_dataframe, load_config
+    from evaluation import ModelEvaluator
+
+    root = Path.cwd().parent
+
+    data = load_data(f"{root}/results/metrics/results_20260224_222500.csv")
+    data_train = load_data(f"{root}/data/train.csv")
+    data_test = load_data(f"{root}/data/test.csv")
+    data_valid = load_data(f"{root}/data/valid.csv")
+    root = Path.cwd().parent
+    preprocessing_file = load_config("config/preprocessing.yaml")
+    b = ModelEvaluator(data_train, data_valid, preprocessing_file, data_test, data)
+    evaluate_valid_data = b.evaluate_to_valid_data()
+    to_dataframe(evaluate_valid_data, "predictions")
+    evaluate_test_data = b.evaluate_to_test_data()
+    to_dataframe(evaluate_test_data, "predictions")

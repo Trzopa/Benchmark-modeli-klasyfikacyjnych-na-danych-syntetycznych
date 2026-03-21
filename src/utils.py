@@ -12,6 +12,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -33,18 +34,18 @@ MODELS = {
     "LGBMClassifier": LGBMClassifier(),
 }
 
-SCALERS = [
-    "passthrough",  # No scaling
-    StandardScaler(),
-    MinMaxScaler(),
-]
+SCALERS = {
+    "passthrough": "passthrough",  # No scaling
+    "StandardScaler": StandardScaler(),
+    "MinMaxScaler": MinMaxScaler(),
+}
 
-SAMPLERS = [
-    "passthrough",  # No resampling
-    RandomOverSampler(random_state=RANDOM_STATE),
-    RandomUnderSampler(random_state=RANDOM_STATE),
-    SMOTE(random_state=RANDOM_STATE),
-]
+SAMPLERS = {
+    "passthrough": "passthrough",  # No resampling
+    "RandomOverSampler": RandomOverSampler(random_state=RANDOM_STATE),
+    "RandomUnderSampler": RandomUnderSampler(random_state=RANDOM_STATE),
+    "SMOTE": SMOTE(random_state=RANDOM_STATE),
+}
 
 
 def load_data(path):
@@ -167,3 +168,29 @@ def create_pipeline(preprocessing_file):
         ('clf', 'passthrough')
     ])
     return pipe
+
+
+def evaluate_valid(y_pred, y_proba, config, training_duration):
+    return save_params_model_with_evaluate_valid_data(
+        model=config["model"],
+        scaler=config["scaler"],
+        balancing_name=config["sampler"],
+        training_time=training_duration,
+        predictions=y_pred.tolist(),
+        y_proba=y_proba.tolist()
+
+    )
+
+
+def evaluate_test(y_test, y_pred, y_proba, config, training_duration):
+    return save_params_model_with_evaluate_test_data(
+        model=config["model"],
+        scaler=config["scaler"],
+        balancing_name=config["sampler"],
+        training_time=training_duration,
+        accuracy_score=accuracy_score(y_test, y_pred),
+        precision_score=precision_score(y_test, y_pred),
+        recall_score=recall_score(y_test, y_pred),
+        f1_score=f1_score(y_test, y_pred),
+        roc_auc_score=roc_auc_score(y_test, y_proba),
+    )

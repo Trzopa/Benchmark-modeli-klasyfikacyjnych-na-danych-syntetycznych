@@ -3,12 +3,11 @@ import warnings
 from itertools import product
 
 from sklearn import set_config
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
+
+from config.experiment_config import param_distributions
 from utils import create_pipeline, save_params_model_with_best_params, to_dataframe, prepare_data, MODELS, SCALERS, \
     SAMPLERS
-from config.experiment_config import param_distributions
 
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
@@ -61,7 +60,7 @@ class Benchmark:
     def run(self):
         all_model_names = list(MODELS.keys())
         # TODO: read about SOLID design pattern
-        combinations = list(product(all_model_names, SCALERS, SAMPLERS))
+        combinations = list(product(all_model_names, SCALERS.keys(), SAMPLERS.keys()))
         all_results = []
 
         for i, (model_name, scaler, sampler) in enumerate(combinations, start=1):
