@@ -33,8 +33,6 @@ def get_configs(results_df):
     return all_configs
 
 
-
-
 class ModelEvaluator:
     def __init__(self, train_data, valid_data, preprocessing_file, test_data, results_df):
         self.results_df = results_df
@@ -42,8 +40,6 @@ class ModelEvaluator:
         self.valid_data = valid_data
         self.test_data = test_data
         self.preprocessing_file = preprocessing_file
-
-
 
     def evaluate_to_valid_data(self):
         configs = get_configs(self.results_df)
@@ -73,7 +69,6 @@ class ModelEvaluator:
 
             y_pred = pipe.predict(X_valid)
             y_proba = pipe.predict_proba(X_valid)[:, 1]
-
 
             result = evaluate_valid(y_pred, y_proba, config, duration)
             results.append(result)
