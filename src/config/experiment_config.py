@@ -1,14 +1,6 @@
-from lightgbm import LGBMClassifier
 from scipy.stats import randint, uniform, loguniform
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-from sklearn.naive_bayes import GaussianNB
 
-RANDOM_STATE = 42
+from src.utils import RANDOM_STATE
 
 param_distributions = {
 
