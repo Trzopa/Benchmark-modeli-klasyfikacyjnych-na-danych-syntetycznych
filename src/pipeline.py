@@ -58,10 +58,8 @@ class Benchmark:
 
     def run(self):
         all_model_names = list(MODELS.keys())
-        # TODO: read about SOLID design pattern
         combinations = list(product(all_model_names, SCALERS.keys(), SAMPLERS.keys()))
         all_results = []
-# TODO pomysl o usnieciu for
         for i, (model_name, scaler, sampler) in enumerate(combinations, start=1):
             print(f"Processing {i}/{len(combinations)} : {model_name} | {scaler} | {sampler}")
             result = self.run_pipeline(model_name, scaler, sampler)
