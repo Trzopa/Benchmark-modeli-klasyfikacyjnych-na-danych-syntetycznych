@@ -67,14 +67,3 @@ class Benchmark:
 
         to_dataframe(all_results, self.save_path)
 
-
-if __name__ == '__main__':
-    from pathlib import Path
-    from utils import load_config, load_data
-
-    root = Path(__file__).parent
-    preprocessing_file = load_config(f"{root}/config/preprocessing.yaml")
-    data = load_data(f"{root}/../data/train.csv")
-    bench = Benchmark(data, preprocessing_file, save_path="metrics")
-    # bench.run_pipeline("LogisticRegression", "passthrough", "passthrough")
-    bench.run()
