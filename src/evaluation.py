@@ -5,7 +5,7 @@ from sklearn import set_config
 
 from utils import prepare_data, \
     MODELS, create_pipeline, SCALERS, SAMPLERS, evaluate_test, evaluate_valid, get_configs
-
+from functools import partial
 set_config(transform_output="pandas")
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
 warnings.filterwarnings("ignore")
@@ -48,7 +48,7 @@ class ModelEvaluator:
 
             y_proba = pipe.predict_proba(X_eval)[:, 1]
 
-            result = evaluate_fn(y_eval, y_pred, y_proba, config, duration)
+            result = evaluate_fn(y_pred, y_proba, config, duration)
             results.append(result)
 
         return results
@@ -70,5 +70,5 @@ class ModelEvaluator:
         return self.__evaluate(
             X_train, y_train,
             X_test, y_test,
-            evaluate_test
+            partial(evaluate_test, y_test)
         )
