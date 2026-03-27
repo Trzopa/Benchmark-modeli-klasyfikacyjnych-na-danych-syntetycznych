@@ -135,7 +135,7 @@ def get_configs(results_df):
     return all_configs
 
 
-def evaluate_valid(y_pred, y_proba, config, training_duration):
+def evaluate_valid(y_true, y_pred, y_proba, config, training_duration):
     return save_params_model_with_evaluate_valid_data(
         model=config["model"],
         scaler=config["scaler"],
@@ -143,7 +143,6 @@ def evaluate_valid(y_pred, y_proba, config, training_duration):
         training_time=training_duration,
         predictions=y_pred.tolist(),
         y_proba=y_proba.tolist()
-
     )
 
 

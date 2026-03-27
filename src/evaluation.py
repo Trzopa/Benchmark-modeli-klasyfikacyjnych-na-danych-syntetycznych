@@ -19,11 +19,14 @@ class ModelEvaluator:
         self.test_data = test_data
         self.preprocessing_file = preprocessing_file
 
-    def _evaluate(self, X_train, y_train, X_eval, y_eval, evaluate_fn):
+    def __evaluate(self, X_train, y_train, X_eval, y_eval, evaluate_fn):
         configs = get_configs(self.results_df)
+        total = len(configs)
         results = []
 
-        for config in configs:
+        for i, config in enumerate(configs, start=1):
+            print(f"Evaluating {i}/{total}: {config['model']} | {config['scaler']} | {config['sampler']}")
+
             pipe = create_pipeline(self.preprocessing_file)
 
             params = config["params"].copy()
@@ -54,7 +57,7 @@ class ModelEvaluator:
         X_train, y_train = prepare_data(self.train_data)
         X_valid, y_valid = prepare_data(self.valid_data)
 
-        return self._evaluate(
+        return self.__evaluate(
             X_train, y_train,
             X_valid, y_valid,
             evaluate_valid
@@ -64,7 +67,7 @@ class ModelEvaluator:
         X_train, y_train = prepare_data(self.train_data)
         X_test, y_test = prepare_data(self.test_data)
 
-        return self._evaluate(
+        return self.__evaluate(
             X_train, y_train,
             X_test, y_test,
             evaluate_test
