@@ -95,15 +95,15 @@ def create_pipeline(preprocessing_file):
     ])
     return pipe
 
-
-def load_models(folder):
-    models = {}
-    for file in os.listdir(folder):
-        if file.endswith(".joblib"):
-            path = os.path.join(folder, file)
-            name = os.path.splitext(file)[0]
-            models[name] = joblib.load(path)
-    return models
+#
+# def load_models(folder):
+#     models = {}
+#     for file in os.listdir(folder):
+#         if file.endswith(".joblib"):
+#             path = os.path.join(folder, file)
+#             name = os.path.splitext(file)[0]
+#             models[name] = joblib.load(path)
+#     return models
 
 
 def load_data(path):

@@ -19,7 +19,7 @@ class ModelEvaluator:
         self.test_data = test_data
         self.preprocessing_file = preprocessing_file
 
-    def __evaluate(self, X_train, y_train, X_eval, y_eval, evaluate_fn):
+    def __evaluate(self, X_train, y_train, X_eval,  evaluate_fn):
         configs = get_configs(self.results_df)
         total = len(configs)
         results = []
@@ -59,7 +59,7 @@ class ModelEvaluator:
 
         return self.__evaluate(
             X_train, y_train,
-            X_valid, y_valid,
+            X_valid,
             evaluate_valid
         )
 
@@ -69,6 +69,6 @@ class ModelEvaluator:
 
         return self.__evaluate(
             X_train, y_train,
-            X_test, y_test,
+            X_test,
             partial(evaluate_test, y_test)
         )
